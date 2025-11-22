@@ -74,6 +74,11 @@ export default function CreateDropPage() {
     setError(null);
 
     try {
+      const walletAccount = await connection.getAccountInfo(publicKey, "confirmed");
+      if (!walletAccount) {
+        throw new Error("Wallet not found on Solana Mainnet Beta. Switch your wallet network and ensure it holds mainnet SOL.");
+      }
+
       const rawAmount = amountToUnits(amount, decimals);
       if (rawAmount <= 0n) {
         throw new Error("Enter a valid amount.");
@@ -139,7 +144,7 @@ export default function CreateDropPage() {
         status: "pending",
       });
     } catch (txError) {
-      setError(txError instanceof Error ? txError.message : "Failed to create drop.");
+      setError(normalizeTxError(txError));
     } finally {
       setProcessing(false);
     }
@@ -266,3 +271,17 @@ export default function CreateDropPage() {
 const CODE_PREVIEW = (cluster: ClusterType, asset: AssetSymbol) =>
   `darkdrop:v1:${cluster}:${asset}:raw:...`;
 
+const normalizeTxError = (error: unknown): string => {
+  if (error instanceof Error) {
+    const message = error.message;
+    const lower = message.toLowerCase();
+    if (lower.includes("invalid public key input")) {
+      return "RPC rejected the transaction. Switch your wallet to Solana Mainnet Beta and ensure it holds mainnet SOL/USDC.";
+    }
+    if (lower.includes("blockhash not found")) {
+      return "Stale blockhash. Reconnect your wallet on Solana Mainnet Beta and try again.";
+    }
+    return message;
+  }
+  return "Failed to create drop.";
+};
