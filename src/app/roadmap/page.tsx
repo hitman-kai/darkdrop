@@ -1,46 +1,52 @@
-﻿const TIMELINE = [
+type TimelineEntry = {
+  title: string;
+  bullets: string[];
+  status: string;
+};
+
+const TIMELINE: TimelineEntry[] = [
   {
-    title: "v1 â€” Launched November 2025",
+    title: 'v1 \u2014 Launched November 2025',
     bullets: [
-      "â€¢ Anonymous dead drops via burner keypairs",
-      "â€¢ Optional AES password protection",
-      "â€¢ QR + claim code sharing",
-      "â€¢ One-click sweep and burner purge",
-      "â€¢ Local history",
-      "â€¢ Full PWA installable",
+      'Anonymous dead drops via burner keypairs',
+      'Optional AES password protection',
+      'QR + claim code sharing',
+      'One-click sweep and burner purge',
+      'Local history',
+      'Full PWA installable',
     ],
-    status: "LIVE",
+    status: 'Status: LIVE',
   },
   {
-    title: "v2 â€” Q4 2025 / Q1 2026",
+    title: 'v2 \u2014 Q4 2025 / Q1 2026',
     bullets: [
-      "â€¢ Token-2022 Confidential Transfers (amounts hidden on-chain via zk)",
-      "â€¢ Support for cUSDC / private SPL tokens",
-      "â€¢ Confidential balances enabled automatically",
-      "â€¢ \"Private Mode\" toggle â€” hides transfer amounts even if sender/receiver use main wallets",
-      "â€¢ Light Protocol integration option (ultra-private mode)",
-      "â€¢ Private SOL drops (zk-compressed, addresses + amounts fully hidden)",
-      "â€¢ Shielded notes instead of burner keypairs",
-      "â€¢ Deposit â†’ private drop â†’ claim â†’ withdraw ceremony (optional public sweep)",
+      'Token-2022 Confidential Transfers (amounts hidden on-chain via zk)',
+      'Support for cUSDC / private SPL tokens',
+      'Confidential balances enabled automatically',
+      '"Private Mode" toggle \u2014 hides transfer amounts even if sender/receiver use main wallets',
+      'Light Protocol integration option (ultra-private mode)',
+      'Private SOL drops (zk-compressed, addresses + amounts fully hidden)',
+      'Shielded notes instead of burner keypairs',
+      'Deposit \u2192 private drop \u2192 claim \u2192 withdraw ceremony (optional public sweep)',
     ],
-    status: "In Development",
+    status: 'Status: In Development',
   },
   {
-    title: "v3 â€” 2026",
+    title: 'v3 \u2014 2026',
     bullets: [
-      "â€¢ Time-locked drops (auto-return if unclaimed)",
-      "â€¢ Multi-recipient batch drops",
-      "â€¢ Duress password (wrong password sweeps to decoy wallet)",
-      "â€¢ Tor / i2p hidden service mirror",
-      "â€¢ Telegram Mini App version",
+      'Time-locked drops (auto-return if unclaimed)',
+      'Multi-recipient batch drops',
+      'Duress password (wrong password sweeps to decoy wallet)',
+      'Tor / i2p hidden service mirror',
+      'Telegram Mini App version',
     ],
-    status: "Planned",
+    status: 'Status: Planned',
   },
-];
+] as const;
 
 export default function RoadmapPage() {
   return (
-    <div className="mx-auto flex min-h-screen max-w-4xl flex-col px-6 py-16 text-white">
+    <div className="mx-auto flex min-h-screen max-w-4xl flex-col bg-black px-6 py-16 text-white">
       <div className="flex flex-col gap-4">
         <p className="text-xs font-mono uppercase tracking-[0.6em] text-[var(--accent)]">
           OUTPUT // 0X01
@@ -52,19 +58,18 @@ export default function RoadmapPage() {
 
       <div className="mt-16 flex flex-col gap-12">
         {TIMELINE.map((entry) => (
-          <div key={entry.title} className="border-l-2 border-[var(--accent)] pl-6">
-            <p className="font-mono text-xl uppercase tracking-[0.5em] text-white">
-              {entry.title}
-            </p>
+          <div key={entry.title} className="relative border-l-2 border-[var(--accent)] pl-6">
+            <span className="absolute -left-[7px] top-2 block h-3 w-3 rounded-full bg-[var(--accent)]" aria-hidden />
+            <p className="font-mono text-xl uppercase tracking-[0.5em] text-white">{entry.title}</p>
             <div className="mt-4 space-y-2 text-sm text-[rgba(224,224,224,0.85)]">
               {entry.bullets.map((bullet) => (
-                <p key={bullet} className="font-mono">
-                  {bullet}
+                <p key={bullet} className="font-mono text-[var(--muted-text,#d7fedd)]">
+                  {"\u2022"} {bullet}
                 </p>
               ))}
             </div>
             <p className="mt-6 font-mono text-xs uppercase tracking-[0.6em] text-[var(--accent)]">
-              Status: {entry.status}
+              {entry.status}
             </p>
           </div>
         ))}

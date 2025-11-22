@@ -4,6 +4,8 @@ import { ArrowRight, ScanLine } from "lucide-react";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 
 export default function Home() {
+  const navLinkClass = "font-mono text-[11px] tracking-[0.35em] text-[var(--accent)] border border-[rgba(0,255,65,0.35)] px-4 py-2 transition-colors hover:bg-[rgba(0,255,65,0.15)] hover:text-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]";
+
   return (
     <div className="flex min-h-screen items-center justify-center px-6 py-20 text-[var(--text)]">
       <div className="z-10 flex w-full max-w-3xl flex-col items-center gap-10 text-center">
@@ -49,26 +51,26 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="flex flex-col items-center gap-3 text-xs uppercase tracking-[0.4em] text-[rgba(224,224,224,0.7)]">
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link href="/history" className="hover:text-[var(--accent)]">
+        <div className="flex flex-col items-center gap-4 text-xs uppercase tracking-[0.35em] text-[rgba(224,224,224,0.85)]">
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Link href="/history" className={navLinkClass}>
               VIEW HISTORY
             </Link>
-            <Link href="/docs" className="hover:text-[var(--accent)]">
+            <Link href="/docs" className={navLinkClass}>
               READ THE GUIDE
             </Link>
-            <Link href="/roadmap" className="hover:text-[var(--accent)]">
+            <Link href="/roadmap" className={navLinkClass}>
               ROADMAP
             </Link>
           </div>
-          <p className="text-[var(--accent)] text-[11px] tracking-[0.3em]">
+          <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[var(--accent)]">
             v1 live • v2 (confidential transfers + Light Protocol) coming soon
           </p>
           <Link
             href="https://x.com/darkdrop_sol"
             target="_blank"
             rel="noreferrer"
-            className="text-[rgba(224,224,224,0.7)] hover:text-[var(--accent)]"
+            className="font-mono text-[12px] uppercase tracking-[0.4em] text-[var(--accent)] underline decoration-dotted underline-offset-4 transition-colors hover:text-white"
           >
             x.com/darkdrop_sol
           </Link>
