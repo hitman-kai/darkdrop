@@ -49,9 +49,14 @@ export default function Home() {
           </div>
         </div>
 
-        <Link href="/history" className="text-xs uppercase tracking-[0.4em] text-[rgba(224,224,224,0.7)] hover:text-[var(--accent)]">
-          VIEW HISTORY
-        </Link>
+        <div className="flex flex-col items-center gap-2 text-xs uppercase tracking-[0.4em] text-[rgba(224,224,224,0.7)]">
+          <Link href="/history" className="hover:text-[var(--accent)]">
+            VIEW HISTORY
+          </Link>
+          <Link href="/docs" className="hover:text-[var(--accent)]">
+            READ THE GUIDE
+          </Link>
+        </div>
       </div>
     </div>
   );
