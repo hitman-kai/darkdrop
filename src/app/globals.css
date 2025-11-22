@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --background: #000000;
+  --card: #0a0a0a;
+  --text: #e0e0e0;
+  --accent: #00ff41;
+  --danger: #ff0044;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-card: var(--card);
+  --color-primary: var(--accent);
+  --color-danger: var(--danger);
+  --color-text: var(--text);
+  --font-mono: var(--font-fira);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--background);
+  color: var(--text);
+  font-family: var(--font-fira), "Fira Code", monospace;
+  letter-spacing: 0.03em;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+  color: var(--text);
+  background-color: transparent;
+}
+
+input,
+textarea,
+select {
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  background-color: #040404;
+  padding: 0.75rem;
+  font-size: 0.95rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 255, 65, 0.2);
+  outline: none;
+}
+
+button {
+  border: 1px solid var(--accent);
+  background-color: rgba(0, 255, 65, 0.08);
+  color: var(--accent);
+  padding: 0.85rem 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+button:hover:not(:disabled) {
+  background-color: rgba(0, 255, 65, 0.15);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.wallet-adapter-modal-wrapper,
+.wallet-adapter-modal {
+  background-color: #050505 !important;
+  color: var(--text) !important;
+  font-family: var(--font-fira), "Fira Code", monospace !important;
+}
