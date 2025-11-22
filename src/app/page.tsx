@@ -49,12 +49,28 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="flex flex-col items-center gap-2 text-xs uppercase tracking-[0.4em] text-[rgba(224,224,224,0.7)]">
-          <Link href="/history" className="hover:text-[var(--accent)]">
-            VIEW HISTORY
-          </Link>
-          <Link href="/docs" className="hover:text-[var(--accent)]">
-            READ THE GUIDE
+        <div className="flex flex-col items-center gap-3 text-xs uppercase tracking-[0.4em] text-[rgba(224,224,224,0.7)]">
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <Link href="/history" className="hover:text-[var(--accent)]">
+              VIEW HISTORY
+            </Link>
+            <Link href="/docs" className="hover:text-[var(--accent)]">
+              READ THE GUIDE
+            </Link>
+            <Link href="/roadmap" className="hover:text-[var(--accent)]">
+              ROADMAP
+            </Link>
+          </div>
+          <p className="text-[var(--accent)] text-[11px] tracking-[0.3em]">
+            v1 live • v2 (confidential transfers + Light Protocol) coming soon
+          </p>
+          <Link
+            href="https://x.com/darkdrop_sol"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[rgba(224,224,224,0.7)] hover:text-[var(--accent)]"
+          >
+            x.com/darkdrop_sol
           </Link>
         </div>
       </div>
