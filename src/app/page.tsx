@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ScanLine } from "lucide-react";
 
@@ -10,6 +11,9 @@ export default function Home() {
     <div className="flex min-h-screen items-center justify-center px-6 py-20 text-[var(--text)]">
       <div className="z-10 flex w-full max-w-3xl flex-col items-center gap-10 text-center">
         <div className="space-y-4">
+          <div className="flex justify-center">
+            <Image src="/logo.png" alt="DarkDrop logo" width={96} height={96} priority />
+          </div>
           <p className="text-xs tracking-[0.8em] text-[var(--accent)]">DARKDROP</p>
           <h1 className="text-4xl font-semibold tracking-[0.2em] text-white">
             Anonymous Solana dead drops
