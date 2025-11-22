@@ -21,7 +21,14 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: "darkdrop-settings",
       storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        preferredAsset: state.preferredAsset,
+      }),
+      merge: (persistedState, currentState) => ({
+        ...currentState,
+        ...(persistedState as Partial<SettingsState>),
+        cluster: DEFAULT_CLUSTER,
+      }),
     }
   )
 );
-
