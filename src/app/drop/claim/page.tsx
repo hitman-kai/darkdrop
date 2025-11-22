@@ -33,7 +33,6 @@ export default function ClaimDropPage() {
   const updateDropStatus = useHistoryStore((state) => state.updateDropStatus);
   const addClaimedDrop = useHistoryStore((state) => state.addClaimedDrop);
   const cluster = useSettingsStore((state) => state.cluster);
-  const setCluster = useSettingsStore((state) => state.setCluster);
 
   const [claimCode, setClaimCode] = useState("");
   const [password, setPassword] = useState("");
@@ -41,7 +40,6 @@ export default function ClaimDropPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sweeping, setSweeping] = useState(false);
-  const [requiredCluster, setRequiredCluster] = useState<ClusterType | null>(null);
 
   const fetchBalance = async (keypair: Keypair, asset: AssetSymbol, dropCluster: ClusterType) => {
     if (asset === "sol") {
@@ -67,13 +65,11 @@ export default function ClaimDropPage() {
       });
 
       if (parsed.cluster !== cluster) {
-        setRequiredCluster(parsed.cluster);
-        setError(`Drop was created on ${CLUSTER_LABELS[parsed.cluster]}. Switch cluster to claim.`);
+        setError(`Drop was created on ${CLUSTER_LABELS[parsed.cluster]}, which DarkDrop no longer supports.`);
         return;
       }
 
       const balance = await fetchBalance(parsed.keypair, parsed.asset, parsed.cluster);
-      setRequiredCluster(null);
       setBurner(parsed.keypair);
       setBurnerState({
         keypair: parsed.keypair,
@@ -218,7 +214,7 @@ export default function ClaimDropPage() {
             onChange={(event) => setClaimCode(event.target.value)}
             rows={4}
             className="mt-2 w-full"
-            placeholder="darkdrop:v1:devnet:usdc:raw:..."
+            placeholder="darkdrop:v1:mainnet:usdc:raw:..."
           />
         </label>
         <label className="block text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
@@ -249,25 +245,10 @@ export default function ClaimDropPage() {
               </p>
             )}
             {error && (
-              <div className="space-y-2">
-                <p className="flex items-center gap-2 text-xs text-[var(--danger)]">
-                  <ShieldAlert size={16} />
-                  {error}
-                </p>
-                {requiredCluster && (
-                  <button
-                    type="button"
-                    className="border border-[rgba(0,255,65,0.3)] px-3 py-1"
-                    onClick={() => {
-                      setCluster(requiredCluster);
-                      setRequiredCluster(null);
-                      setError(null);
-                    }}
-                  >
-                    SWITCH TO {CLUSTER_LABELS[requiredCluster]}
-                  </button>
-                )}
-              </div>
+              <p className="flex items-center gap-2 text-xs text-[var(--danger)]">
+                <ShieldAlert size={16} />
+                {error}
+              </p>
             )}
           </div>
         </div>
@@ -304,3 +285,6 @@ export default function ClaimDropPage() {
     </div>
   );
 }
+
+
+

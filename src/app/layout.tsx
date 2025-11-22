@@ -4,7 +4,6 @@ import "./globals.css";
 
 import { MatrixBackground } from "@/components/MatrixBackground";
 import { SolanaProviders } from "@/components/providers/SolanaProviders";
-import { SettingsDock } from "@/components/SettingsDock";
 
 const fira = Fira_Code({
   variable: "--font-fira",
@@ -34,7 +33,6 @@ export default function RootLayout({
       <body className={`${fira.variable} antialiased`}>
         <SolanaProviders>
           <div className="relative min-h-screen bg-[color:var(--background)] text-[color:var(--text)]">
-            <SettingsDock />
             <MatrixBackground />
             <main className="relative z-10 min-h-screen">{children}</main>
           </div>

@@ -8,7 +8,6 @@ import { AssetSymbol, ClusterType, DEFAULT_ASSET, DEFAULT_CLUSTER } from "@/lib/
 type SettingsState = {
   cluster: ClusterType;
   preferredAsset: AssetSymbol;
-  setCluster: (cluster: ClusterType) => void;
   setPreferredAsset: (asset: AssetSymbol) => void;
 };
 
@@ -17,7 +16,6 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       cluster: DEFAULT_CLUSTER,
       preferredAsset: DEFAULT_ASSET,
-      setCluster: (cluster) => set({ cluster }),
       setPreferredAsset: (preferredAsset) => set({ preferredAsset }),
     }),
     {
@@ -26,3 +24,4 @@ export const useSettingsStore = create<SettingsState>()(
     }
   )
 );
+

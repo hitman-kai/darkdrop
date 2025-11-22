@@ -69,7 +69,7 @@ type ClaimOptions = {
   fallbackCluster?: ClusterType;
 };
 
-const parseCluster = (value: string): ClusterType => (value === "mainnet" ? "mainnet" : value === "devnet" ? "devnet" : DEFAULT_CLUSTER);
+const parseCluster = (value: string): ClusterType => (value === "mainnet" ? "mainnet" : DEFAULT_CLUSTER);
 const parseAsset = (value: string): AssetSymbol => (value === "usdc" ? "usdc" : "sol");
 
 export function claimDrop(code: string, options?: ClaimOptions): ClaimedDrop {
@@ -148,3 +148,4 @@ export function claimDrop(code: string, options?: ClaimOptions): ClaimedDrop {
 
   throw new Error("Unsupported claim code");
 }
+

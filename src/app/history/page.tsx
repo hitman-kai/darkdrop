@@ -8,7 +8,7 @@ import { useHistoryStore } from "@/store/history";
 
 const explorerUrl = (signature: string, cluster: ClusterType) => {
   const base = `https://solscan.io/tx/${signature}`;
-  return cluster === "devnet" ? `${base}?cluster=devnet` : base;
+  return base;
 };
 
 export default function HistoryPage() {
@@ -88,3 +88,4 @@ export default function HistoryPage() {
     </div>
   );
 }
+

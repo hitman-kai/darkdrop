@@ -30,7 +30,7 @@ const USDC_FEE_BUFFER_LAMPORTS = Math.round(0.002 * LAMPORTS_PER_SOL);
 
 const explorerUrl = (signature: string, cluster: ClusterType) => {
   const base = `https://solscan.io/tx/${signature}`;
-  return cluster === "devnet" ? `${base}?cluster=devnet` : base;
+  return base;
 };
 
 type DropResult = DropPayload & {
@@ -265,3 +265,4 @@ export default function CreateDropPage() {
 
 const CODE_PREVIEW = (cluster: ClusterType, asset: AssetSymbol) =>
   `darkdrop:v1:${cluster}:${asset}:raw:...`;
+
