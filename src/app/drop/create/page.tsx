@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, Shield, ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
+import { ArrowLeftRight, ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { createAssociatedTokenAccountInstruction, createTransferInstruction, getAssociatedTokenAddress } from "@solana/spl-token";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 
 import { DropCard } from "@/components/DropCard";
+import { ConfidentialPreviewCard } from "@/components/ConfidentialPreviewCard";
 import { QRDisplay } from "@/components/QRDisplay";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { amountToUnits } from "@/lib/amount";
@@ -68,6 +69,7 @@ export default function CreateDropPage() {
   const decimals = getAssetDecimals(asset);
   const symbol = getAssetSymbol(asset);
   const confidentialSupport = getConfidentialSupport(asset);
+  const mintAddress = useMemo(() => getAssetMint(asset, cluster), [asset, cluster]);
 
   const handleAssetChange = (next: AssetSymbol) => {
     setAsset(next);
@@ -77,12 +79,19 @@ export default function CreateDropPage() {
   useEffect(() => {
     let cancelled = false;
     if (!privateMode) {
-      setConfidentialNotes(confidentialSupport.supported ? [] : confidentialSupport.reason ? [confidentialSupport.reason] : []);
+      setConfidentialNotes(
+        confidentialSupport.supported ? [] : confidentialSupport.reason ? [confidentialSupport.reason] : []
+      );
       setPrivacyPending(false);
       return;
     }
     if (!confidentialSupport.supported) {
       setConfidentialNotes(confidentialSupport.reason ? [confidentialSupport.reason] : []);
+      setPrivacyPending(false);
+      return;
+    }
+    if (!mintAddress) {
+      setConfidentialNotes(["Missing cUSDC mint configuration."]);
       setPrivacyPending(false);
       return;
     }
@@ -96,9 +105,14 @@ export default function CreateDropPage() {
           units = 0n;
         }
         const proof = await generateConfidentialProof({
+          kind: "token2022-confidential-transfer",
           asset,
           amount: units,
           decimals,
+          mint: mintAddress,
+          owner: publicKey?.toBase58(),
+          destination: publicKey?.toBase58(),
+          cluster,
         });
         if (!cancelled) {
           setConfidentialNotes(proof.notes);
@@ -119,7 +133,7 @@ export default function CreateDropPage() {
     return () => {
       cancelled = true;
     };
-  }, [asset, amount, decimals, privateMode, confidentialSupport, setPrivacyPending]);
+  }, [asset, amount, decimals, privateMode, confidentialSupport, setPrivacyPending, mintAddress, publicKey, cluster]);
 
   const handleCreate = async () => {
     if (!connected || !publicKey) {
@@ -274,98 +288,17 @@ export default function CreateDropPage() {
             className="mt-2 w-full"
           />
         </label>
-        <div className="mt-4 space-y-2 border border-[rgba(0,255,65,0.2)] p-4 text-xs">
-
-          <label className="flex items-center gap-2 uppercase tracking-[0.3em] text-[rgba(224,224,224,0.7)]">
-
-            <input
-
-              type="checkbox"
-
-              className="size-4 border border-[rgba(0,255,65,0.4)] bg-transparent text-[var(--accent)]"
-
-              checked={privateMode}
-
-              onChange={(event) => setPrivateMode(event.target.checked)}
-
-              disabled={!confidentialSupport.supported}
-
-            />
-
-            PRIVATE MODE (PREVIEW)
-
-          </label>
-
-          <p className="text-[rgba(224,224,224,0.6)]">
-
-            {confidentialSupport.supported
-
-              ? "Confidential transfers will encrypt amounts once Phase 2 lands. Preview-only; sending is disabled for now."
-
-              : confidentialSupport.reason}
-
-          </p>
-
-          {privateMode && (
-
-            <div className="space-y-1 text-[rgba(224,224,224,0.6)]">
-
-              <p className="flex items-center gap-2 text-[rgba(0,255,65,0.8)]">
-
-                <Shield size={14} />
-
-                {privacyPending ? "Building proof preview..." : "Proof preview"}
-
-              </p>
-
-              <ul className="space-y-1 text-[rgba(224,224,224,0.65)]">
-
-                {confidentialNotes.map((note) => (
-
-                  <li key={note}>??? {note}</li>
-
-                ))}
-
-              </ul>
-
-            </div>
-
-          )}
-
-        </div>
-
-
-
-        <div className="mt-4 space-y-2 border border-[rgba(0,255,65,0.2)] p-4 text-xs">
-          <label className="flex items-center gap-2 uppercase tracking-[0.3em] text-[rgba(224,224,224,0.7)]">
-            <input
-              type="checkbox"
-              className="size-4 border border-[rgba(0,255,65,0.4)] bg-transparent text-[var(--accent)]"
-              checked={privateMode}
-              onChange={(event) => setPrivateMode(event.target.checked)}
-              disabled={!confidentialSupport.supported}
-            />
-            PRIVATE MODE (PREVIEW)
-          </label>
-          <p className="text-[rgba(224,224,224,0.6)]">
-            {confidentialSupport.supported
-              ? "Confidential transfers will encrypt amounts once Phase 2 lands. Preview-only; sending is disabled for now."
-              : confidentialSupport.reason}
-          </p>
-          {privateMode && (
-            <div className="space-y-1 text-[rgba(224,224,224,0.6)]">
-              <p className="flex items-center gap-2 text-[rgba(0,255,65,0.8)]">
-                <Shield size={14} />
-                {privacyPending ? "Building proof preview..." : "Proof preview"}
-              </p>
-              <ul className="space-y-1 text-[rgba(224,224,224,0.65)]">
-                {confidentialNotes.map((note) => (
-                  <li key={note}>??? {note}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
+        <ConfidentialPreviewCard
+          enabled={privateMode}
+          pending={privacyPending}
+          notes={confidentialNotes}
+          onToggle={(next) => setPrivateMode(next)}
+          disabledReason={
+            confidentialSupport.supported
+              ? undefined
+              : confidentialSupport.reason ?? "Asset not supported on Token-2022."
+          }
+        />
 
         <div className="flex flex-wrap items-center gap-4 border border-[rgba(0,255,65,0.2)] p-4 text-xs">
           <ShieldQuestion size={16} />

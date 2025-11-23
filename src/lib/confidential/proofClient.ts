@@ -1,17 +1,34 @@
 "use client";
 
+import type { ClusterType } from "@/lib/tokens";
 import { AssetSymbol } from "@/lib/tokens";
 
-type ProofRequest = {
+type ProofJobKind = "token2022-confidential-transfer";
+
+export type ProofJob = {
+  kind: ProofJobKind;
   asset: AssetSymbol;
   amount: bigint;
   decimals: number;
+  cluster?: ClusterType;
+  mint?: string;
+  owner?: string;
+  destination?: string;
 };
 
-type ProofResponse = {
+export type ProofResponse = {
   ok: boolean;
-  proof?: string;
+  proof?: {
+    kind: ProofJobKind;
+    preview: string;
+    metadata?: Record<string, string | number | boolean | null>;
+  };
   notes: string[];
+};
+
+type WorkerResponse = {
+  id: string;
+  result: ProofResponse;
 };
 
 const pending = new Map<
@@ -33,7 +50,7 @@ const ensureWorker = () => {
   if (typeof window === "undefined") return null;
   if (!workerInstance) {
     workerInstance = createWorker();
-    workerInstance.addEventListener("message", (event: MessageEvent<{ id: string; result: ProofResponse }>) => {
+    workerInstance.addEventListener("message", (event: MessageEvent<WorkerResponse>) => {
       const handler = pending.get(event.data.id);
       if (!handler) return;
       pending.delete(event.data.id);
@@ -48,7 +65,7 @@ const ensureWorker = () => {
   return workerInstance;
 };
 
-export async function generateConfidentialProof(request: ProofRequest): Promise<ProofResponse> {
+export async function generateConfidentialProof(request: ProofJob): Promise<ProofResponse> {
   if (typeof window === "undefined") {
     return {
       ok: false,
@@ -70,9 +87,8 @@ export async function generateConfidentialProof(request: ProofRequest): Promise<
     worker.postMessage({
       id,
       payload: {
-        asset: request.asset,
+        ...request,
         amount: request.amount.toString(),
-        decimals: request.decimals,
       },
     });
   });

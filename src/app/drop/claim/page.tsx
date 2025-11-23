@@ -7,6 +7,7 @@ import { createAssociatedTokenAccountInstruction, createTransferInstruction, get
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { RefreshCcw, Shield, ShieldAlert, ShieldOff } from "lucide-react";
 
+import { ConfidentialPreviewCard } from "@/components/ConfidentialPreviewCard";
 import { DropCard } from "@/components/DropCard";
 import { QRScanner } from "@/components/QRScanner";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
@@ -295,6 +296,16 @@ export default function ClaimDropPage() {
               Asset: <strong>{getAssetSymbol(burner.asset)}</strong> · Cluster: {CLUSTER_LABELS[burner.cluster]}
             </p>
             <p className="text-sm text-[rgba(224,224,224,0.8)]">Balance: <strong>{balanceDisplay}</strong></p>
+            {confidentialNotes.length > 0 && (
+              <ConfidentialPreviewCard
+                enabled
+                interactive={false}
+                notes={confidentialNotes}
+                description="Proof + decrypt steps will show here once private rails go live."
+                label="CONFIDENTIAL ACCOUNT NOTES"
+              />
+            )}
+
             <div className="flex gap-3">
               <button type="button" onClick={refreshBalance} className="flex flex-1 items-center justify-center gap-2">
                 <RefreshCcw size={16} />
