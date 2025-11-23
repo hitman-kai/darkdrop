@@ -15,7 +15,7 @@ import { unitsToAmount } from "@/lib/amount";
 import { claimDrop } from "@/lib/drop";
 import { AssetSymbol, ClusterType, CLUSTER_LABELS, getAssetDecimals, getAssetMint, getAssetProgramId, getAssetSymbol } from "@/lib/tokens";
 
-import { getConfidentialSupport, planConfidentialAccount } from "@/lib/confidential/transfers";
+import { getConfidentialSupport, planConfidentialAccount, planConfidentialTransfer } from "@/lib/confidential/transfers";
 import { useBurnerStore } from "@/store/burner";
 import { useHistoryStore } from "@/store/history";
 import { useSettingsStore } from "@/store/settings";
@@ -186,9 +186,28 @@ export default function ClaimDropPage() {
         if (!destInfo) {
           instructions.push(createAssociatedTokenAccountInstruction(mainWallet, destAta, mainWallet, mint, tokenProgramId));
         }
-        instructions.push(
-          createTransferInstruction(sourceAta, destAta, burner.keypair.publicKey, Number(burner.balance), [], tokenProgramId)
-        );
+
+        const support = getConfidentialSupport(burner.asset);
+        if (support.supported && confidentialNotes.length > 0) {
+          const ctPlan = await planConfidentialTransfer({
+            connection,
+            asset: burner.asset,
+            owner: burner.keypair.publicKey,
+            destination: mainWallet,
+          });
+          if (ctPlan.instructions.length === 0) {
+            throw new Error(
+              "Confidential sweep instructions not yet implemented. " +
+                (ctPlan.notes.length ? ctPlan.notes[0] : "Check DEV_FLOW.md for status.")
+            );
+          }
+          instructions.push(...ctPlan.instructions);
+        } else {
+          instructions.push(
+            createTransferInstruction(sourceAta, destAta, burner.keypair.publicKey, Number(burner.balance), [], tokenProgramId)
+          );
+        }
+
         const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
         const tx = new Transaction().add(...instructions);
         tx.recentBlockhash = blockhash;

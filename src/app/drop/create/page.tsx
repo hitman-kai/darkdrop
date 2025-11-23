@@ -14,7 +14,7 @@ import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { amountToUnits } from "@/lib/amount";
 import { generateDrop, type DropPayload } from "@/lib/drop";
 import { generateConfidentialProof } from "@/lib/confidential/proofClient";
-import { getConfidentialSupport } from "@/lib/confidential/transfers";
+import { getConfidentialSupport, planConfidentialTransfer } from "@/lib/confidential/transfers";
 import {
   ASSETS,
   AssetSymbol,
@@ -140,10 +140,6 @@ export default function CreateDropPage() {
       setError("Connect a Solana wallet first.");
       return;
     }
-    if (privateMode) {
-      setError("Private Mode is in preview. Disable it to send a standard drop.");
-      return;
-    }
 
     setProcessing(true);
     setError(null);
@@ -189,9 +185,27 @@ export default function CreateDropPage() {
         if (!toInfo) {
           instructions.push(createAssociatedTokenAccountInstruction(publicKey, toAta, dropPubkey, mint, tokenProgramId));
         }
-        instructions.push(
-          createTransferInstruction(fromAta, toAta, publicKey, Number(rawAmount), [], tokenProgramId)
-        );
+
+        if (privateMode && asset === "usdc") {
+          const ctPlan = await planConfidentialTransfer({
+            connection,
+            asset,
+            owner: publicKey,
+            destination: dropPubkey,
+          });
+          if (ctPlan.instructions.length === 0) {
+            throw new Error(
+              "Confidential transfer instructions not yet implemented. " +
+                (ctPlan.notes.length ? ctPlan.notes[0] : "Check DEV_FLOW.md for status.")
+            );
+          }
+          instructions.push(...ctPlan.instructions);
+        } else {
+          instructions.push(
+            createTransferInstruction(fromAta, toAta, publicKey, Number(rawAmount), [], tokenProgramId)
+          );
+        }
+
         instructions.push(
           SystemProgram.transfer({
             fromPubkey: publicKey,

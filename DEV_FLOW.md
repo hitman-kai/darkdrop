@@ -25,3 +25,4 @@ Add new entries chronologically so the next operator can follow the trail.
 - [2025-11-23] Confidential preview UX unified via `ConfidentialPreviewCard`. Create + claim pages now share the same status panel and claim view shows account notes once loaded. Next: replace mock worker output with real Token-2022 proofs.
 - [2025-11-23] Mint/account inspection now surfaces real CT readiness: we fetch mint/ATA TLVs, display readiness notes in /drop create + claim so operators know when configure/approve is still pending. Next: hook proof worker to real CT SDK.
 - [2025-11-23] Proof worker + client now accept Token-2022 job payloads (mint/owner/cluster) and /drop/create feeds them. Still mock output but ready to swap in the actual SDK.
+- [2025-11-23] Instruction scaffolding added (configure/approve/enable stubs in instructions.ts). Planners now call them and surface step-by-step notes. Next: lift the "preview only" guard and enable actual sends once proofs exist.
