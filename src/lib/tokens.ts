@@ -1,6 +1,7 @@
 "use client";
 
 import { clusterApiUrl } from "@solana/web3.js";
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 export type ClusterType = "mainnet";
 export type AssetSymbol = "sol" | "usdc";
@@ -18,8 +19,11 @@ export const RPC_ENDPOINTS: Record<ClusterType, string> = {
   mainnet: MAINNET_RPC || clusterApiUrl("mainnet-beta"),
 };
 
-const USDC_MINTS: Record<ClusterType, string> = {
-  mainnet: process.env.NEXT_PUBLIC_USDC_MAINNET_MINT ?? "EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G",
+const CUSDC_MINTS: Record<ClusterType, string> = {
+  mainnet:
+    process.env.NEXT_PUBLIC_CUSDC_MAINNET_MINT ??
+    process.env.NEXT_PUBLIC_USDC_MAINNET_MINT ??
+    "",
 };
 
 type AssetMeta =
@@ -35,6 +39,7 @@ type AssetMeta =
       decimals: number;
       kind: "spl";
       mint: Record<ClusterType, string>;
+      program: "token" | "token-2022";
     };
 
 export const ASSETS: Record<AssetSymbol, AssetMeta> = {
@@ -45,11 +50,12 @@ export const ASSETS: Record<AssetSymbol, AssetMeta> = {
     kind: "native",
   },
   usdc: {
-    symbol: "USDC",
-    label: "USD Coin",
+    symbol: "cUSDC",
+    label: "Confidential USDC",
     decimals: 6,
     kind: "spl",
-    mint: USDC_MINTS,
+    mint: CUSDC_MINTS,
+    program: "token-2022",
   },
 };
 
@@ -66,4 +72,10 @@ export const getAssetMint = (asset: AssetSymbol, cluster: ClusterType): string |
   const meta = ASSETS[asset];
   if (meta.kind === "native") return null;
   return meta.mint[cluster];
+};
+
+export const getAssetProgramId = (asset: AssetSymbol) => {
+  const meta = ASSETS[asset];
+  if (meta.kind === "native") return null;
+  return meta.program === "token-2022" ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID;
 };

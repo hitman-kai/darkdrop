@@ -21,14 +21,15 @@ import {
   assetList,
   getAssetDecimals,
   getAssetMint,
+  getAssetProgramId,
   getAssetSymbol,
 } from "@/lib/tokens";
 import { useHistoryStore } from "@/store/history";
 import { useSettingsStore } from "@/store/settings";
 
-const USDC_FEE_BUFFER_LAMPORTS = Math.round(0.002 * LAMPORTS_PER_SOL);
+const CUSDC_FEE_BUFFER_LAMPORTS = Math.round(0.002 * LAMPORTS_PER_SOL);
 
-const explorerUrl = (signature: string, cluster: ClusterType) => {
+const explorerUrl = (signature: string) => {
   const base = `https://solscan.io/tx/${signature}`;
   return base;
 };
@@ -76,7 +77,7 @@ export default function CreateDropPage() {
     try {
       const walletAccount = await connection.getAccountInfo(publicKey, "confirmed");
       if (!walletAccount) {
-        throw new Error("Wallet not found on Solana Mainnet Beta. Switch your wallet network and ensure it holds mainnet SOL.");
+        throw new Error("Wallet not found on Solana Mainnet Beta. Switch your wallet network and ensure it holds mainnet SOL (and cUSDC if needed).");
       }
 
       const rawAmount = amountToUnits(amount, decimals);
@@ -102,27 +103,28 @@ export default function CreateDropPage() {
         signature = await sendTransaction(tx, connection, { skipPreflight: false });
       } else {
         const mintAddress = getAssetMint(asset, cluster);
-        if (!mintAddress) throw new Error("Missing token mint for this asset.");
+        const tokenProgramId = getAssetProgramId(asset);
+        if (!mintAddress || !tokenProgramId) throw new Error("Missing token configuration for this asset.");
         const mint = new PublicKey(mintAddress);
-        const fromAta = await getAssociatedTokenAddress(mint, publicKey);
+        const fromAta = await getAssociatedTokenAddress(mint, publicKey, false, tokenProgramId);
         const fromInfo = await connection.getAccountInfo(fromAta);
         if (!fromInfo) throw new Error(`No ${symbol} balance on this cluster.`);
-        const toAta = await getAssociatedTokenAddress(mint, dropPubkey, true);
+        const toAta = await getAssociatedTokenAddress(mint, dropPubkey, true, tokenProgramId);
         const toInfo = await connection.getAccountInfo(toAta);
         const instructions = [];
         if (!toInfo) {
-          instructions.push(createAssociatedTokenAccountInstruction(publicKey, toAta, dropPubkey, mint));
+          instructions.push(createAssociatedTokenAccountInstruction(publicKey, toAta, dropPubkey, mint, tokenProgramId));
         }
         instructions.push(
-        createTransferInstruction(fromAta, toAta, publicKey, Number(rawAmount))
-      );
-      instructions.push(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: dropPubkey,
-          lamports: USDC_FEE_BUFFER_LAMPORTS,
-        })
-      );
+          createTransferInstruction(fromAta, toAta, publicKey, Number(rawAmount), [], tokenProgramId)
+        );
+        instructions.push(
+          SystemProgram.transfer({
+            fromPubkey: publicKey,
+            toPubkey: dropPubkey,
+            lamports: CUSDC_FEE_BUFFER_LAMPORTS,
+          })
+        );
         const tx = new Transaction().add(...instructions);
         tx.feePayer = publicKey;
         signature = await sendTransaction(tx, connection, { skipPreflight: false });
@@ -251,7 +253,7 @@ export default function CreateDropPage() {
               <p>
                 Transfer signature:{" "}
                 <a
-                  href={explorerUrl(result.signature, result.cluster)}
+                  href={explorerUrl(result.signature)}
                   target="_blank"
                   rel="noreferrer"
                   className="text-[var(--accent)] underline"
@@ -276,7 +278,7 @@ const normalizeTxError = (error: unknown): string => {
     const message = error.message;
     const lower = message.toLowerCase();
     if (lower.includes("invalid public key input")) {
-      return "RPC rejected the transaction. Switch your wallet to Solana Mainnet Beta and ensure it holds mainnet SOL/USDC.";
+      return "RPC rejected the transaction. Switch your wallet to Solana Mainnet Beta and ensure it holds mainnet SOL/cUSDC.";
     }
     if (lower.includes("blockhash not found")) {
       return "Stale blockhash. Reconnect your wallet on Solana Mainnet Beta and try again.";

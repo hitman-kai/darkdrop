@@ -12,7 +12,7 @@ import { QRScanner } from "@/components/QRScanner";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { unitsToAmount } from "@/lib/amount";
 import { claimDrop } from "@/lib/drop";
-import { AssetSymbol, ClusterType, CLUSTER_LABELS, getAssetDecimals, getAssetMint, getAssetSymbol } from "@/lib/tokens";
+import { AssetSymbol, ClusterType, CLUSTER_LABELS, getAssetDecimals, getAssetMint, getAssetProgramId, getAssetSymbol } from "@/lib/tokens";
 import { useBurnerStore } from "@/store/burner";
 import { useHistoryStore } from "@/store/history";
 import { useSettingsStore } from "@/store/settings";
@@ -47,9 +47,10 @@ export default function ClaimDropPage() {
       return BigInt(lamports);
     }
     const mintAddress = getAssetMint(asset, dropCluster);
-    if (!mintAddress) return 0n;
+    const tokenProgramId = getAssetProgramId(asset);
+    if (!mintAddress || !tokenProgramId) return 0n;
     const mint = new PublicKey(mintAddress);
-    const ata = await getAssociatedTokenAddress(mint, keypair.publicKey, true);
+    const ata = await getAssociatedTokenAddress(mint, keypair.publicKey, true, tokenProgramId);
     const info = await connection.getTokenAccountBalance(ata).catch(() => null);
     if (!info?.value?.amount) return 0n;
     return BigInt(info.value.amount);
@@ -109,7 +110,7 @@ export default function ClaimDropPage() {
     }
 
     if (burner.asset === "usdc" && burner.balance <= 0n) {
-      setError("No USDC remaining to sweep.");
+      setError("No cUSDC remaining to sweep.");
       return;
     }
 
@@ -145,17 +146,18 @@ export default function ClaimDropPage() {
         });
       } else {
         const mintAddress = getAssetMint(burner.asset, burner.cluster);
-        if (!mintAddress) throw new Error("Missing token mint for USDC.");
+        const tokenProgramId = getAssetProgramId(burner.asset);
+        if (!mintAddress || !tokenProgramId) throw new Error("Missing token mint for cUSDC (Token-2022).");
         const mint = new PublicKey(mintAddress);
-        const sourceAta = await getAssociatedTokenAddress(mint, burner.keypair.publicKey, true);
-        const destAta = await getAssociatedTokenAddress(mint, mainWallet, true);
+        const sourceAta = await getAssociatedTokenAddress(mint, burner.keypair.publicKey, true, tokenProgramId);
+        const destAta = await getAssociatedTokenAddress(mint, mainWallet, true, tokenProgramId);
         const instructions = [];
         const destInfo = await connection.getAccountInfo(destAta);
         if (!destInfo) {
-          instructions.push(createAssociatedTokenAccountInstruction(mainWallet, destAta, mainWallet, mint));
+          instructions.push(createAssociatedTokenAccountInstruction(mainWallet, destAta, mainWallet, mint, tokenProgramId));
         }
         instructions.push(
-          createTransferInstruction(sourceAta, destAta, burner.keypair.publicKey, Number(burner.balance))
+          createTransferInstruction(sourceAta, destAta, burner.keypair.publicKey, Number(burner.balance), [], tokenProgramId)
         );
         const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
         const tx = new Transaction().add(...instructions);

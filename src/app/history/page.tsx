@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { ArrowUpRight, Clock3, ShieldCheck } from "lucide-react";
 
-import { CLUSTER_LABELS, ClusterType, getAssetSymbol } from "@/lib/tokens";
+import { CLUSTER_LABELS, getAssetSymbol } from "@/lib/tokens";
 import { useHistoryStore } from "@/store/history";
 
-const explorerUrl = (signature: string, cluster: ClusterType) => {
+const explorerUrl = (signature: string) => {
   const base = `https://solscan.io/tx/${signature}`;
   return base;
 };
@@ -73,7 +73,7 @@ export default function HistoryPage() {
                   {new Date(drop.claimedAt).toLocaleString()} · {CLUSTER_LABELS[drop.cluster]}
                 </p>
                 <a
-                  href={explorerUrl(drop.signature, drop.cluster)}
+                  href={explorerUrl(drop.signature)}
                   target="_blank"
                   rel="noreferrer"
                   className="mt-1 inline-flex items-center gap-1 text-[var(--accent)]"

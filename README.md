@@ -1,7 +1,7 @@
 # DARKDROP
 
 Anonymous Solana dead drops  
-No address sharing · No direct on-chain link · Just a code
+No address sharing Â· No direct on-chain link Â· Just a code
 
 https://darkdrop.app
 
@@ -17,21 +17,21 @@ Mathematical privacy extensions (Token-2022 confidential transfers + Light Proto
 
 ## FEATURES
 
-- SOL and USDC (Token-2022) support
+- SOL + cUSDC (Token-2022) support
 - Optional password-protected claim codes (AES-256, scrypt-derived)
 - QR + plaintext code generation
 - Temporary burner import with one-click sweep and purge
 - LocalStorage history (50 latest actions, per-browser)
-- Full PWA — installable, offline-capable
-- Mainnet-only · No devnet fallback
+- Full PWA â€” installable, offline-capable
+- Mainnet-only Â· No devnet fallback
 
 ## ROADMAP
 
-/roadmap → https://darkdrop.app/roadmap
+/roadmap â†’ https://darkdrop.app/roadmap
 
-v1   Live (November 2025) – Burner-based dead drops  
-v2   Q4 2025 / Q1 2026 – Token-2022 confidential transfers + Light Protocol shielded drops  
-v3   2026 – Time-locks · Duress mode · Tor mirror · Telegram Mini App
+v1   Live (November 2025) â€“ Burner-based dead drops  
+v2   Q4 2025 / Q1 2026 â€“ Token-2022 confidential transfers + Light Protocol shielded drops  
+v3   2026 â€“ Time-locks Â· Duress mode Â· Tor mirror Â· Telegram Mini App
 
 ## LOCAL DEVELOPMENT
 
@@ -57,7 +57,7 @@ Recommended: Vercel (current deployment method) or static export behind Nginx.
 Environment variables (optional):
 
 - NEXT_PUBLIC_SOLANA_MAINNET_RPC   – Custom RPC endpoint (default: public fallback)
-- NEXT_PUBLIC_USDC_MAINNET_MINT    – USDC mint (default: EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G)
+- NEXT_PUBLIC_CUSDC_MAINNET_MINT   – Token-2022 cUSDC mint (required; set manually, falls back to legacy NEXT_PUBLIC_USDC_MAINNET_MINT if defined)
 
 Use Helius, QuickNode, or Triton for production traffic.
 
@@ -69,3 +69,10 @@ No server component exists. All encryption occurs in-memory using tweetnacl.
 Users are responsible for their own operational security.
 
 No warranty. Use at your own risk.
+
+## DEVELOPMENT PROTOCOL
+
+- `main` == production v1. Do not land experimental work here.
+- All Token-2022 / Light Protocol / confidential-transfer work must stay on the `v2-confidential` branch.
+- Every time you touch v2, update `DEV_FLOW.md` in the repo root with status + next steps so the next operator can resume.
+- Merge back into `main` only after v2 is complete, reviewed, and signed off for release.
