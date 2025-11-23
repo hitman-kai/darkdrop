@@ -42,6 +42,7 @@ export default function ClaimDropPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sweeping, setSweeping] = useState(false);
+  const [confidentialNotes, setConfidentialNotes] = useState<string[]>([]);
 
   const fetchBalance = async (keypair: Keypair, asset: AssetSymbol, dropCluster: ClusterType) => {
     if (asset === "sol") {

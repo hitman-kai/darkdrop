@@ -12,6 +12,8 @@ import { QRDisplay } from "@/components/QRDisplay";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { amountToUnits } from "@/lib/amount";
 import { generateDrop, type DropPayload } from "@/lib/drop";
+import { generateConfidentialProof } from "@/lib/confidential/proofClient";
+import { getConfidentialSupport } from "@/lib/confidential/transfers";
 import {
   ASSETS,
   AssetSymbol,
@@ -26,6 +28,7 @@ import {
 } from "@/lib/tokens";
 import { useHistoryStore } from "@/store/history";
 import { useSettingsStore } from "@/store/settings";
+import { usePrivacyStore } from "@/store/privacy";
 
 const CUSDC_FEE_BUFFER_LAMPORTS = Math.round(0.002 * LAMPORTS_PER_SOL);
 
@@ -45,6 +48,10 @@ export default function CreateDropPage() {
   const cluster = useSettingsStore((state) => state.cluster);
   const preferredAsset = useSettingsStore((state) => state.preferredAsset);
   const setPreferredAsset = useSettingsStore((state) => state.setPreferredAsset);
+  const privateMode = usePrivacyStore((state) => state.privateMode);
+  const setPrivateMode = usePrivacyStore((state) => state.setPrivateMode);
+  const privacyPending = usePrivacyStore((state) => state.pending);
+  const setPrivacyPending = usePrivacyStore((state) => state.setPending);
 
   const [asset, setAsset] = useState<AssetSymbol>(preferredAsset ?? DEFAULT_ASSET);
   const [amount, setAmount] = useState("0.1");
@@ -52,6 +59,7 @@ export default function CreateDropPage() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DropResult | null>(null);
+  const [confidentialNotes, setConfidentialNotes] = useState<string[]>([]);
 
   useEffect(() => {
     setAsset(preferredAsset);
@@ -59,15 +67,67 @@ export default function CreateDropPage() {
 
   const decimals = getAssetDecimals(asset);
   const symbol = getAssetSymbol(asset);
+  const confidentialSupport = getConfidentialSupport(asset);
 
   const handleAssetChange = (next: AssetSymbol) => {
     setAsset(next);
     setPreferredAsset(next);
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!privateMode) {
+      setConfidentialNotes(confidentialSupport.supported ? [] : confidentialSupport.reason ? [confidentialSupport.reason] : []);
+      setPrivacyPending(false);
+      return;
+    }
+    if (!confidentialSupport.supported) {
+      setConfidentialNotes(confidentialSupport.reason ? [confidentialSupport.reason] : []);
+      setPrivacyPending(false);
+      return;
+    }
+    const run = async () => {
+      setPrivacyPending(true);
+      try {
+        let units = 0n;
+        try {
+          units = amountToUnits(amount || "0", decimals);
+        } catch {
+          units = 0n;
+        }
+        const proof = await generateConfidentialProof({
+          asset,
+          amount: units,
+          decimals,
+        });
+        if (!cancelled) {
+          setConfidentialNotes(proof.notes);
+        }
+      } catch (proofError) {
+        if (!cancelled) {
+          setConfidentialNotes([
+            proofError instanceof Error ? proofError.message : "Unable to build proof preview.",
+          ]);
+        }
+      } finally {
+        if (!cancelled) {
+          setPrivacyPending(false);
+        }
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [asset, amount, decimals, privateMode, confidentialSupport, setPrivacyPending]);
+
   const handleCreate = async () => {
     if (!connected || !publicKey) {
       setError("Connect a Solana wallet first.");
+      return;
+    }
+    if (privateMode) {
+      setError("Private Mode is in preview. Disable it to send a standard drop.");
       return;
     }
 
@@ -214,37 +274,99 @@ export default function CreateDropPage() {
             className="mt-2 w-full"
           />
         </label>
-        <div className="mt-4 space-y-2 border border-[rgba(0,255,65,0.2)] p-4 text-xs">
-          <label className="flex items-center gap-2 uppercase tracking-[0.3em] text-[rgba(224,224,224,0.7)]">
-            <input
-              type="checkbox"
-              className="size-4 border border-[rgba(0,255,65,0.4)] bg-transparent text-[var(--accent)]"
-              checked={privateMode}
-              onChange={(event) => setPrivateMode(event.target.checked)}
-              disabled={!confidentialSupport.supported}
-            />
-            PRIVATE MODE (PREVIEW)
-          </label>
-          <p className="text-[rgba(224,224,224,0.6)]">
-            {confidentialSupport.supported
-              ? "Confidential transfers will encrypt amounts once Phase 2 lands. Preview-only; sending is disabled for now."
-              : confidentialSupport.reason}
-          </p>
-          {privateMode && (
-            <div className="space-y-1 text-[rgba(224,224,224,0.6)]">
-              <p className="flex items-center gap-2 text-[rgba(0,255,65,0.8)]">
-                <Shield size={14} />
-                {privacyPending ? "Building proof preview..." : "Proof preview"}
-              </p>
-              <ul className="space-y-1 text-[rgba(224,224,224,0.65)]">
-                {confidentialNotes.map((note) => (
-                  <li key={note}>??? {note}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-
+        <div className="mt-4 space-y-2 border border-[rgba(0,255,65,0.2)] p-4 text-xs">
+
+          <label className="flex items-center gap-2 uppercase tracking-[0.3em] text-[rgba(224,224,224,0.7)]">
+
+            <input
+
+              type="checkbox"
+
+              className="size-4 border border-[rgba(0,255,65,0.4)] bg-transparent text-[var(--accent)]"
+
+              checked={privateMode}
+
+              onChange={(event) => setPrivateMode(event.target.checked)}
+
+              disabled={!confidentialSupport.supported}
+
+            />
+
+            PRIVATE MODE (PREVIEW)
+
+          </label>
+
+          <p className="text-[rgba(224,224,224,0.6)]">
+
+            {confidentialSupport.supported
+
+              ? "Confidential transfers will encrypt amounts once Phase 2 lands. Preview-only; sending is disabled for now."
+
+              : confidentialSupport.reason}
+
+          </p>
+
+          {privateMode && (
+
+            <div className="space-y-1 text-[rgba(224,224,224,0.6)]">
+
+              <p className="flex items-center gap-2 text-[rgba(0,255,65,0.8)]">
+
+                <Shield size={14} />
+
+                {privacyPending ? "Building proof preview..." : "Proof preview"}
+
+              </p>
+
+              <ul className="space-y-1 text-[rgba(224,224,224,0.65)]">
+
+                {confidentialNotes.map((note) => (
+
+                  <li key={note}>??? {note}</li>
+
+                ))}
+
+              </ul>
+
+            </div>
+
+          )}
+
+        </div>
+
+
+
+        <div className="mt-4 space-y-2 border border-[rgba(0,255,65,0.2)] p-4 text-xs">
+          <label className="flex items-center gap-2 uppercase tracking-[0.3em] text-[rgba(224,224,224,0.7)]">
+            <input
+              type="checkbox"
+              className="size-4 border border-[rgba(0,255,65,0.4)] bg-transparent text-[var(--accent)]"
+              checked={privateMode}
+              onChange={(event) => setPrivateMode(event.target.checked)}
+              disabled={!confidentialSupport.supported}
+            />
+            PRIVATE MODE (PREVIEW)
+          </label>
+          <p className="text-[rgba(224,224,224,0.6)]">
+            {confidentialSupport.supported
+              ? "Confidential transfers will encrypt amounts once Phase 2 lands. Preview-only; sending is disabled for now."
+              : confidentialSupport.reason}
+          </p>
+          {privateMode && (
+            <div className="space-y-1 text-[rgba(224,224,224,0.6)]">
+              <p className="flex items-center gap-2 text-[rgba(0,255,65,0.8)]">
+                <Shield size={14} />
+                {privacyPending ? "Building proof preview..." : "Proof preview"}
+              </p>
+              <ul className="space-y-1 text-[rgba(224,224,224,0.65)]">
+                {confidentialNotes.map((note) => (
+                  <li key={note}>??? {note}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-wrap items-center gap-4 border border-[rgba(0,255,65,0.2)] p-4 text-xs">
           <ShieldQuestion size={16} />
           <p className="text-[rgba(224,224,224,0.7)]">
