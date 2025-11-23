@@ -20,4 +20,5 @@
 - [2025-11-23] Bootstrap: `v2-confidential` branch created from `main`. Next action is to design the Token-2022 cUSDC flow without touching v1.
 - [2025-11-23] Phase 1 kickoff: cUSDC asset now uses Token-2022 (mint env required) and create/claim flows build Token-2022 instructions. Next: wire up confidential transfer SDK scaffolding.
 - [2025-11-23] Token-2022 cUSDC mint live at `8vVxyKSPyyf5iXk2eQdi7KGbBr1okp8bseyjGNZSWahR` with treasury ATA `AH5US8BCoGnLLJdRBp1mPg62XCodRQirBcn8JV4agwPw`. `.env.local` now carries `NEXT_PUBLIC_CUSDC_MAINNET_MINT`. Next focus: scaffold confidential-transfer account approval + proof plumbing without touching v1.
+- [2025-11-23] Phase 2 scaffolding: added proof worker stub, privacy store toggle in create flow, and confidential account notes on claim page. Actual confidential transfers still disabled.
 Add new entries chronologically so the next operator can follow the trail.

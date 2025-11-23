@@ -13,6 +13,8 @@ import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { unitsToAmount } from "@/lib/amount";
 import { claimDrop } from "@/lib/drop";
 import { AssetSymbol, ClusterType, CLUSTER_LABELS, getAssetDecimals, getAssetMint, getAssetProgramId, getAssetSymbol } from "@/lib/tokens";
+
+import { getConfidentialSupport, planConfidentialAccount } from "@/lib/confidential/transfers";
 import { useBurnerStore } from "@/store/burner";
 import { useHistoryStore } from "@/store/history";
 import { useSettingsStore } from "@/store/settings";
@@ -69,6 +71,32 @@ export default function ClaimDropPage() {
         setError(`Drop was created on ${CLUSTER_LABELS[parsed.cluster]}, which DarkDrop no longer supports.`);
         return;
       }
+
+      const support = getConfidentialSupport(parsed.asset);
+
+      if (support.supported) {
+
+        const plan = await planConfidentialAccount({
+
+          connection,
+
+          asset: parsed.asset,
+
+          owner: parsed.keypair.publicKey,
+
+          destination: mainWallet ?? parsed.keypair.publicKey,
+
+        });
+
+        setConfidentialNotes(plan.notes);
+
+      } else if (support.reason) {
+
+        setConfidentialNotes([support.reason]);
+
+      }
+
+
 
       const balance = await fetchBalance(parsed.keypair, parsed.asset, parsed.cluster);
       setBurner(parsed.keypair);

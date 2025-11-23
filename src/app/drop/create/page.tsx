@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
+import { ArrowLeftRight, Shield, ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { createAssociatedTokenAccountInstruction, createTransferInstruction, getAssociatedTokenAddress } from "@solana/spl-token";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -214,6 +214,37 @@ export default function CreateDropPage() {
             className="mt-2 w-full"
           />
         </label>
+        <div className="mt-4 space-y-2 border border-[rgba(0,255,65,0.2)] p-4 text-xs">
+          <label className="flex items-center gap-2 uppercase tracking-[0.3em] text-[rgba(224,224,224,0.7)]">
+            <input
+              type="checkbox"
+              className="size-4 border border-[rgba(0,255,65,0.4)] bg-transparent text-[var(--accent)]"
+              checked={privateMode}
+              onChange={(event) => setPrivateMode(event.target.checked)}
+              disabled={!confidentialSupport.supported}
+            />
+            PRIVATE MODE (PREVIEW)
+          </label>
+          <p className="text-[rgba(224,224,224,0.6)]">
+            {confidentialSupport.supported
+              ? "Confidential transfers will encrypt amounts once Phase 2 lands. Preview-only; sending is disabled for now."
+              : confidentialSupport.reason}
+          </p>
+          {privateMode && (
+            <div className="space-y-1 text-[rgba(224,224,224,0.6)]">
+              <p className="flex items-center gap-2 text-[rgba(0,255,65,0.8)]">
+                <Shield size={14} />
+                {privacyPending ? "Building proof preview..." : "Proof preview"}
+              </p>
+              <ul className="space-y-1 text-[rgba(224,224,224,0.65)]">
+                {confidentialNotes.map((note) => (
+                  <li key={note}>??? {note}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-wrap items-center gap-4 border border-[rgba(0,255,65,0.2)] p-4 text-xs">
           <ShieldQuestion size={16} />
           <p className="text-[rgba(224,224,224,0.7)]">
