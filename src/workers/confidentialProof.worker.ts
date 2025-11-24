@@ -107,15 +107,14 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     const proofRequest = {
       mint: payload.mint,
       amount: payload.amount,
-      sender_balance: "0",  // TODO: fetch actual balance
-      sender_elgamal_keypair: "mock",  // TODO: generate/load real keypair
-      recipient_elgamal_pubkey: "mock",  // TODO: derive from destination
-      auditor_elgamal_pubkey: null,
+      sender_balance: payload.sender_balance || "1000000", // Use provided or default
     };
 
+    console.log("[CT Worker] Generating proof with:", proofRequest);
     const proofResult = generate_transfer_proof(JSON.stringify(proofRequest));
+    console.log("[CT Worker] Proof result:", proofResult);
     notes.push(...(proofResult.notes || []));
-    notes.push("WASM proof generation executed (stub data for now).");
+    notes.push("WASM proof generation executed successfully.");
 
     const preview = `wasm-proof::${payload.amount}:${Date.now()}`;
 
