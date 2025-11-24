@@ -1,5 +1,10 @@
 /// <reference lib="webworker" />
 
+import init, {
+  init_panic_hook,
+  generate_transfer_proof,
+} from "../lib/wasm/darkdrop_ct_proofs";
+
 type Token2022Payload = {
   kind: "token2022-confidential-transfer";
   asset: string;
@@ -31,8 +36,34 @@ type WorkerResponse = {
 
 const ctx: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobalScope;
 
-ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
+let wasmReady = false;
+
+// Initialize WASM module
+(async () => {
+  try {
+    await init();
+    init_panic_hook();
+    wasmReady = true;
+    ctx.postMessage({ type: "wasm-ready" });
+  } catch (error) {
+    ctx.postMessage({
+      type: "wasm-error",
+      error: error instanceof Error ? error.message : "Failed to load WASM",
+    });
+  }
+})();
+
+ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const { id, payload } = event.data;
+
+  if (!wasmReady) {
+    ctx.postMessage({
+      id,
+      result: { ok: false, notes: ["WASM module not ready yet. Retry in a moment."] },
+    });
+    return;
+  }
+
   const notes: string[] = [];
 
   if (payload.kind !== "token2022-confidential-transfer") {
@@ -51,33 +82,60 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
     return;
   }
 
-  notes.push(`Preparing Token-2022 confidential transfer preview for ${payload.asset}.`);
-  notes.push(`Mint: ${payload.mint}`);
-  notes.push(`Cluster: ${payload.cluster ?? "unknown"}`);
-  notes.push(`Owner: ${payload.owner ?? "n/a"}`);
-  notes.push(`Destination: ${payload.destination ?? "n/a"}`);
-  notes.push(`Amount (raw units): ${payload.amount}`);
-  notes.push("Proof artifacts are still mocked until the Token-2022 SDK is wired in.");
+  try {
+    notes.push(`WASM proof worker loaded for ${payload.asset}.`);
+    notes.push(`Mint: ${payload.mint}`);
+    notes.push(`Cluster: ${payload.cluster ?? "unknown"}`);
+    notes.push(`Owner: ${payload.owner ?? "n/a"}`);
+    notes.push(`Destination: ${payload.destination ?? "n/a"}`);
+    notes.push(`Amount (raw units): ${payload.amount}`);
 
-  const preview = `ciphertext::${payload.amount}:${Date.now()}`;
+    // Call WASM proof generator
+    const proofRequest = {
+      mint: payload.mint,
+      amount: payload.amount,
+      sender_balance: "0",  // TODO: fetch actual balance
+      sender_elgamal_keypair: "mock",  // TODO: generate/load real keypair
+      recipient_elgamal_pubkey: "mock",  // TODO: derive from destination
+      auditor_elgamal_pubkey: null,
+    };
 
-  const response: WorkerResponse = {
-    id,
-    result: {
-      ok: true,
-      proof: {
-        kind: payload.kind,
-        preview,
-        metadata: {
-          mint: payload.mint,
-          cluster: payload.cluster ?? "unknown",
-          owner: payload.owner ?? null,
-          destination: payload.destination ?? null,
+    const proofResult = generate_transfer_proof(JSON.stringify(proofRequest));
+    notes.push(...(proofResult.notes || []));
+    notes.push("WASM proof generation executed (stub data for now).");
+
+    const preview = `wasm-proof::${payload.amount}:${Date.now()}`;
+
+    const response: WorkerResponse = {
+      id,
+      result: {
+        ok: true,
+        proof: {
+          kind: payload.kind,
+          preview,
+          metadata: {
+            mint: payload.mint,
+            cluster: payload.cluster ?? "unknown",
+            owner: payload.owner ?? null,
+            destination: payload.destination ?? null,
+            wasm_loaded: true,
+          },
         },
+        notes,
       },
-      notes,
-    },
-  };
+    };
 
-  ctx.postMessage(response);
+    ctx.postMessage(response);
+  } catch (error) {
+    ctx.postMessage({
+      id,
+      result: {
+        ok: false,
+        notes: [
+          "WASM proof generation failed.",
+          error instanceof Error ? error.message : "Unknown error",
+        ],
+      },
+    });
+  }
 };
