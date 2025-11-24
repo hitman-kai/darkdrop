@@ -116,15 +116,13 @@ export default function CreateDropPage() {
         });
         if (!cancelled) {
           setConfidentialNotes(proof.notes);
+          setPrivacyPending(false);
         }
       } catch (proofError) {
         if (!cancelled) {
           setConfidentialNotes([
             proofError instanceof Error ? proofError.message : "Unable to build proof preview.",
           ]);
-        }
-      } finally {
-        if (!cancelled) {
           setPrivacyPending(false);
         }
       }
@@ -133,7 +131,7 @@ export default function CreateDropPage() {
     return () => {
       cancelled = true;
     };
-  }, [asset, amount, decimals, privateMode, confidentialSupport, setPrivacyPending, mintAddress, publicKey, cluster]);
+  }, [asset, amount, decimals, privateMode, mintAddress, publicKey, cluster]);
 
   const handleCreate = async () => {
     if (!connected || !publicKey) {
