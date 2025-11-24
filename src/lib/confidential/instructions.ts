@@ -107,6 +107,13 @@ export async function buildConfidentialTransferInstruction(params: {
   const { buildCTTransferWithProofs } = await import("./ct-instructions");
 
   try {
+    console.log("[Instructions] Building CT transfer with proofData:", !!params.proofData);
+    
+    // Import instruction builders
+    const { buildCTTransferWithProofs } = await import("./ct-instructions");
+    
+    console.log("[Instructions] Import successful, building transfer for amount:", params.amount);
+    
     // Decode base64 proofs from WASM
     const equalityProof = Uint8Array.from(atob(params.proofData.equalityProof), (c) => c.charCodeAt(0));
     const validityProof = Uint8Array.from(atob(params.proofData.validityProof), (c) => c.charCodeAt(0));
@@ -138,8 +145,12 @@ export async function buildConfidentialTransferInstruction(params: {
 
     return { instructions, notes };
   } catch (error) {
+    console.error("[Instructions] Error building CT transfer:", error);
     notes.push("Failed to build CT transfer instructions:");
     notes.push(error instanceof Error ? error.message : "Unknown error");
+    if (error instanceof Error && error.stack) {
+      console.error("[Instructions] Stack:", error.stack);
+    }
     return { instructions: [], notes };
   }
 }

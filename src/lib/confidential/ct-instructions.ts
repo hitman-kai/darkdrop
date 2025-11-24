@@ -144,15 +144,17 @@ export function buildConfidentialTransferInstruction(
 ): TransactionInstruction {
   // For now, use standard transferChecked (instruction 12)
   // This lets us test the transaction flow while CT encoding is being finalized
-  const transferData = Buffer.alloc(10);
-  transferData[0] = 12; // transferChecked discriminator
   
-  // Write amount as little-endian u64
-  const amountNum = Number(amount);
-  transferData.writeBigUInt64LE(BigInt(amountNum), 1);
+  // Create instruction data using DataView for proper byte writing
+  const data = new Uint8Array(10);
+  data[0] = 12; // transferChecked discriminator
+  
+  // Write amount as little-endian u64 using DataView
+  const view = new DataView(data.buffer);
+  view.setBigUint64(1, amount, true); // true = little-endian
   
   // Write decimals
-  transferData[9] = decimals;
+  data[9] = decimals;
 
   return new TransactionInstruction({
     keys: [
@@ -162,7 +164,7 @@ export function buildConfidentialTransferInstruction(
       { pubkey: owner, isSigner: true, isWritable: false },
     ],
     programId: TOKEN_2022_PROGRAM_ID,
-    data: transferData,
+    data,
   });
 }
 
