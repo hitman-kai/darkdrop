@@ -42,7 +42,7 @@ let wasmReady = false;
 (async () => {
   try {
     // Use location to construct absolute URL
-    const baseUrl = (self as any).location?.origin || "http://localhost:3001";
+    const baseUrl = (self as typeof globalThis).location?.origin || "http://localhost:3001";
     const wasmUrl = `${baseUrl}/darkdrop_ct_proofs_bg.wasm`;
     console.log("[CT Worker] Loading WASM from:", wasmUrl);
     
@@ -131,6 +131,12 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
             owner: payload.owner ?? null,
             destination: payload.destination ?? null,
             wasm_loaded: true,
+            // Include the actual proof data
+            equality_proof: proofResult.equality_proof,
+            validity_proof: proofResult.validity_proof,
+            range_proof: proofResult.range_proof,
+            new_source_balance: proofResult.new_source_balance,
+            sender_elgamal_keypair: proofResult.sender_elgamal_keypair,
           },
         },
         notes,

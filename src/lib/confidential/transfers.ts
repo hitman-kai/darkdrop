@@ -37,6 +37,14 @@ type BuildContext = {
   asset: AssetSymbol;
   owner: PublicKey;
   destination: PublicKey;
+  amount?: bigint;
+  proofData?: {
+    equalityProof: string;
+    validityProof: string;
+    rangeProof: string;
+    newSourceBalance: string;
+    senderElGamalKeypair: string;
+  };
 };
 
 const DEFAULT_CONFIDENTIAL_CLUSTER: ClusterType = DEFAULT_CLUSTER;
@@ -272,10 +280,15 @@ export async function planConfidentialTransfer({
     from: sourceInspection.address,
     to: destinationInspection.address,
     owner,
-    amount: 0n,
+    amount: amount || 0n,
+    proofData,
   });
 
-  notes.push("Proof worker must produce decryptable balances + commitments before we can build the transfer IX.");
+  if (ctTransfer.instructions.length > 0) {
+    notes.push("✓ CT transfer instructions built successfully");
+  } else {
+    notes.push("Proof data available but instructions not yet built");
+  }
   notes.push(...ctTransfer.notes);
 
   return {

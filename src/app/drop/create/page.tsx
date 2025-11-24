@@ -61,6 +61,13 @@ export default function CreateDropPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DropResult | null>(null);
   const [confidentialNotes, setConfidentialNotes] = useState<string[]>([]);
+  const [proofData, setProofData] = useState<{
+    equalityProof: string;
+    validityProof: string;
+    rangeProof: string;
+    newSourceBalance: string;
+    senderElGamalKeypair: string;
+  } | null>(null);
 
   useEffect(() => {
     setAsset(preferredAsset);
@@ -123,6 +130,20 @@ export default function CreateDropPage() {
         if (!cancelled) {
           setConfidentialNotes(proof.notes);
           setPrivacyPending(false);
+          
+          // Save proof data for use in transaction
+          if (proof.proof?.metadata) {
+            const meta = proof.proof.metadata;
+            if (meta.equality_proof && meta.validity_proof && meta.range_proof) {
+              setProofData({
+                equalityProof: String(meta.equality_proof),
+                validityProof: String(meta.validity_proof),
+                rangeProof: String(meta.range_proof),
+                newSourceBalance: String(meta.new_source_balance),
+                senderElGamalKeypair: String(meta.sender_elgamal_keypair),
+              });
+            }
+          }
         }
       } catch (proofError) {
         if (!cancelled) {
@@ -190,20 +211,26 @@ export default function CreateDropPage() {
           instructions.push(createAssociatedTokenAccountInstruction(publicKey, toAta, dropPubkey, mint, tokenProgramId));
         }
 
-        if (privateMode && asset === "usdc") {
+        if (privateMode && asset === "usdc" && proofData) {
           const ctPlan = await planConfidentialTransfer({
             connection,
             asset,
             owner: publicKey,
             destination: dropPubkey,
+            amount: rawAmount,
+            proofData,
           });
           if (ctPlan.instructions.length === 0) {
             throw new Error(
-              "Confidential transfer instructions not yet implemented. " +
-                (ctPlan.notes.length ? ctPlan.notes[0] : "Check DEV_FLOW.md for status.")
+              "Confidential transfer instructions not yet built. " +
+                (ctPlan.notes.length ? ctPlan.notes[0] : "Generate proofs first by enabling Private Mode.")
             );
           }
           instructions.push(...ctPlan.instructions);
+        } else if (privateMode && asset === "usdc" && !proofData) {
+          throw new Error(
+            "Private Mode enabled but no proof data available. Wait for proof generation to complete."
+          );
         } else {
           instructions.push(
             createTransferInstruction(fromAta, toAta, publicKey, Number(rawAmount), [], tokenProgramId)
