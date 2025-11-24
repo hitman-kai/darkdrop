@@ -1,6 +1,7 @@
 "use client";
 
 import { PublicKey, TransactionInstruction, SystemProgram, SYSVAR_INSTRUCTIONS_PUBKEY } from "@solana/web3.js";
+import { serialize } from "borsh";
 
 /**
  * Token-2022 Program ID

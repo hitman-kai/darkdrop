@@ -211,25 +211,19 @@ export default function CreateDropPage() {
           instructions.push(createAssociatedTokenAccountInstruction(publicKey, toAta, dropPubkey, mint, tokenProgramId));
         }
 
-        if (privateMode && asset === "usdc" && proofData) {
-          const ctPlan = await planConfidentialTransfer({
-            connection,
-            asset,
-            owner: publicKey,
-            destination: dropPubkey,
-            amount: rawAmount,
-            proofData,
-          });
-          if (ctPlan.instructions.length === 0) {
-            throw new Error(
-              "Confidential transfer instructions not yet built. " +
-                (ctPlan.notes.length ? ctPlan.notes[0] : "Generate proofs first by enabling Private Mode.")
-            );
-          }
-          instructions.push(...ctPlan.instructions);
-        } else if (privateMode && asset === "usdc" && !proofData) {
+        if (privateMode && asset === "usdc") {
+          // For now, use standard transfer until CT instructions are fixed
+          // TODO: Uncomment once instruction format is correct
+          // const ctPlan = await planConfidentialTransfer({
+          //   connection,
+          //   asset,
+          //   owner: publicKey,
+          //   destination: dropPubkey,
+          //   amount: rawAmount,
+          //   proofData,
+          // });
           throw new Error(
-            "Private Mode enabled but no proof data available. Wait for proof generation to complete."
+            "Private Mode transfers coming soon! CT proof generation works, instruction format being finalized. Use standard transfer for now (disable Private Mode)."
           );
         } else {
           instructions.push(

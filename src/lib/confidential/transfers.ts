@@ -229,6 +229,8 @@ export async function planConfidentialTransfer({
   asset,
   owner,
   destination,
+  amount,
+  proofData,
 }: BuildContext): Promise<ConfidentialTransferPlan> {
   const support = getConfidentialSupport(asset);
   if (!support.supported) {
@@ -280,7 +282,7 @@ export async function planConfidentialTransfer({
     from: sourceInspection.address,
     to: destinationInspection.address,
     owner,
-    amount: amount || 0n,
+    amount: amount ?? 0n,
     proofData,
   });
 
