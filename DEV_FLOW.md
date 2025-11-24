@@ -27,3 +27,4 @@ Add new entries chronologically so the next operator can follow the trail.
 - [2025-11-23] Proof worker + client now accept Token-2022 job payloads (mint/owner/cluster) and /drop/create feeds them. Still mock output but ready to swap in the actual SDK.
 - [2025-11-23] Instruction scaffolding added (configure/approve/enable stubs in instructions.ts). Planners now call them and surface step-by-step notes. Next: lift the "preview only" guard and enable actual sends once proofs exist.
 - [2025-11-23] Private Mode toggle now live: removed preview-only guard. Create flow attempts CT transfer when privateMode+cUSDC; claim flow uses CT sweep if notes exist. Both throw clear errors until SDK instructions are built. Ready for SDK integration phase.
+- [2025-11-24] WASM proof module initialized: Rust crate wraps solana-zk-sdk, compiles to WASM, loaded in worker. Stub proofs returning; next step is implementing real ElGamal encryption + ZK range proofs.
