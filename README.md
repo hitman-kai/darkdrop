@@ -1,7 +1,7 @@
 # DARKDROP
 
 Anonymous Solana dead drops  
-No address sharing Â· No direct on-chain link Â· Just a code
+No address sharing · No direct on-chain link · Just a code
 
 https://darkdrop.app
 
@@ -22,16 +22,16 @@ Mathematical privacy extensions (Token-2022 confidential transfers + Light Proto
 - QR + plaintext code generation
 - Temporary burner import with one-click sweep and purge
 - LocalStorage history (50 latest actions, per-browser)
-- Full PWA â€” installable, offline-capable
+- Full PWA installable, offline-capable
 - Mainnet-only Â· No devnet fallback
 
 ## ROADMAP
 
-/roadmap â†’ https://darkdrop.app/roadmap
+/roadmap https://darkdrop.app/roadmap
 
-v1   Live (November 2025) â€“ Burner-based dead drops  
+v1   Live (November 2025) Burner-based dead drops  
 v2   Q4 2025 / Q1 2026 â€“ Token-2022 confidential transfers + Light Protocol shielded drops  
-v3   2026 â€“ Time-locks Â· Duress mode Â· Tor mirror Â· Telegram Mini App
+v3   2026 Time-locks Â· Duress mode Â· Tor mirror Â· Telegram Mini App
 
 ## LOCAL DEVELOPMENT
 
