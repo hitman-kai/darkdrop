@@ -53,8 +53,8 @@ export function ConfidentialPreviewCard({
           <ul className="space-y-1">
             {notes.length === 0
               ? [<li key="empty">{"\u2022"} No proof info yet.</li>]
-              : notes.map((note) => (
-                  <li key={note}>
+              : notes.map((note, index) => (
+                  <li key={`${index}-${note.slice(0, 20)}`}>
                     {"\u2022"} {note}
                   </li>
                 ))}
