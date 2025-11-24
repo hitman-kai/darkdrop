@@ -38,19 +38,21 @@ const CT_INSTRUCTION_TYPES = {
 };
 
 /**
- * Create proof verification instruction
+ * Create proof verification instruction for ZK ElGamal Proof Program
+ * These instructions verify the ZK proofs before the CT transfer
  */
 function createProofInstruction(
   proofType: number,
-  proofData: Uint8Array,
-  contextStateAccount?: PublicKey
+  proofData: Uint8Array
 ): TransactionInstruction {
-  const data = Buffer.concat([Buffer.from([proofType]), Buffer.from(proofData)]);
+  // Proof instruction format: [proof_type(1 byte)] + [proof_data]
+  const data = new Uint8Array(1 + proofData.length);
+  data[0] = proofType;
+  data.set(proofData, 1);
 
+  // Proof instructions have no accounts - they just verify and store in context
   return new TransactionInstruction({
-    keys: contextStateAccount
-      ? [{ pubkey: contextStateAccount, isSigner: false, isWritable: true }]
-      : [],
+    keys: [],
     programId: ZK_ELGAMAL_PROOF_PROGRAM_ID,
     data,
   });
@@ -131,36 +133,35 @@ export function buildEnableCreditsInstruction(tokenAccount: PublicKey, owner: Pu
 
 /**
  * Build ConfidentialTransfer instruction
- * Note: This uses the standard transferChecked instruction for now
- * TODO: Implement full CT transfer once instruction format is validated
+ * Instruction format: [discriminator(1), subtype(1), new_decryptable_balance(64), proof_offset(1)]
  */
 export function buildConfidentialTransferInstruction(
   sourceAccount: PublicKey,
   mint: PublicKey,
   destinationAccount: PublicKey,
   owner: PublicKey,
-  amount: bigint,
-  decimals: number
+  newSourceDecryptableBalance: Uint8Array,
+  proofOffset: number
 ): TransactionInstruction {
-  // For now, use standard transferChecked (instruction 12)
-  // This lets us test the transaction flow while CT encoding is being finalized
+  // CT Transfer instruction (discriminator 27, subtype 4)
+  // Total: 1 + 1 + 64 + 1 = 67 bytes
+  const data = new Uint8Array(67);
+  data[0] = CT_INSTRUCTION_TYPES.Transfer; // 27
+  data[1] = CT_INSTRUCTION_TYPES.TransferSubtype; // 4
   
-  // Create instruction data using DataView for proper byte writing
-  const data = new Uint8Array(10);
-  data[0] = 12; // transferChecked discriminator
+  // New source decryptable balance (64 bytes ElGamal ciphertext)
+  data.set(newSourceDecryptableBalance.slice(0, 64), 2);
   
-  // Write amount as little-endian u64 using DataView
-  const view = new DataView(data.buffer);
-  view.setBigUint64(1, amount, true); // true = little-endian
-  
-  // Write decimals
-  data[9] = decimals;
+  // Proof instruction offset (signed byte) - negative offset to first proof
+  const offsetView = new DataView(data.buffer);
+  offsetView.setInt8(66, proofOffset);
 
   return new TransactionInstruction({
     keys: [
       { pubkey: sourceAccount, isSigner: false, isWritable: true },
       { pubkey: mint, isSigner: false, isWritable: false },
       { pubkey: destinationAccount, isSigner: false, isWritable: true },
+      { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false },
       { pubkey: owner, isSigner: true, isWritable: false },
     ],
     programId: TOKEN_2022_PROGRAM_ID,
@@ -169,27 +170,44 @@ export function buildConfidentialTransferInstruction(
 }
 
 /**
- * Build CT transfer using standard transfer for now
- * TODO: Add proof verification instructions once CT instruction format is validated
+ * Build complete CT transfer with ZK proof verification
  */
 export function buildCTTransferWithProofs(
   sourceAccount: PublicKey,
   mint: PublicKey,
   destinationAccount: PublicKey,
   owner: PublicKey,
-  amount: bigint,
-  decimals: number
+  equalityProof: Uint8Array,
+  validityProof: Uint8Array,
+  rangeProof: Uint8Array,
+  newSourceDecryptableBalance: Uint8Array
 ): TransactionInstruction[] {
-  // For now, use standard transferChecked
-  // Proofs are generated and available, but CT instruction encoding needs refinement
+  // Build all four instructions:
+  // 1. Equality proof verification
+  // 2. Validity proof verification  
+  // 3. Range proof verification
+  // 4. CT transfer (references proofs at offset -3, -2, -1)
+
   return [
+    createProofInstruction(
+      PROOF_INSTRUCTION_TYPES.CiphertextCommitmentEquality,
+      equalityProof
+    ),
+    createProofInstruction(
+      PROOF_INSTRUCTION_TYPES.BatchedGroupedCiphertext3HandlesValidity,
+      validityProof
+    ),
+    createProofInstruction(
+      PROOF_INSTRUCTION_TYPES.BatchedRangeProofU128,
+      rangeProof
+    ),
     buildConfidentialTransferInstruction(
       sourceAccount,
       mint,
       destinationAccount,
       owner,
-      amount,
-      decimals
+      newSourceDecryptableBalance,
+      -3 // Offset to first proof (equality proof is 3 instructions before)
     ),
   ];
 }

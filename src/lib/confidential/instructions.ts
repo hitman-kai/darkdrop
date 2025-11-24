@@ -112,29 +112,36 @@ export async function buildConfidentialTransferInstruction(params: {
     // Import instruction builders
     const { buildCTTransferWithProofs } = await import("./ct-instructions");
     
-    console.log("[Instructions] Import successful, building transfer for amount:", params.amount);
+    console.log("[Instructions] Import successful, building CT transfer with proofs");
+    console.log("[Instructions] Amount:", params.amount);
     
     // Decode base64 proofs from WASM
     const equalityProof = Uint8Array.from(atob(params.proofData.equalityProof), (c) => c.charCodeAt(0));
     const validityProof = Uint8Array.from(atob(params.proofData.validityProof), (c) => c.charCodeAt(0));
     const rangeProof = Uint8Array.from(atob(params.proofData.rangeProof), (c) => c.charCodeAt(0));
 
-    // Parse new source balance
-    const newBalance = BigInt(params.proofData.newSourceBalance);
-    
-    // Encode new balance as decryptable balance (simplified - would need proper ElGamal encoding)
+    console.log("[Instructions] Decoded proofs - Equality:", equalityProof.length, "Validity:", validityProof.length, "Range:", rangeProof.length);
+
+    // For new source decryptable balance, we need a 64-byte ElGamal ciphertext
+    // The WASM should provide this, but for now create a placeholder
+    // TODO: Get actual encrypted balance from WASM proof result
     const newBalanceBytes = new Uint8Array(64);
+    const newBalance = BigInt(params.proofData.newSourceBalance);
     const balanceView = new DataView(newBalanceBytes.buffer);
     balanceView.setBigUint64(0, newBalance, true);
 
-    // Build CT transfer (using standard transfer for now while CT encoding is finalized)
+    console.log("[Instructions] Building transaction with", 4, "instructions");
+
+    // Build complete CT transfer with all proof verification
     const instructions = buildCTTransferWithProofs(
       params.from,
       params.mint,
       params.to,
       params.owner,
-      params.amount,
-      6 // cUSDC decimals
+      equalityProof,
+      validityProof,
+      rangeProof,
+      newBalanceBytes
     );
 
     notes.push("✓ Decoded WASM proofs successfully");
