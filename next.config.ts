@@ -12,12 +12,27 @@ const aliasMap = {
 };
 
 const nextConfig: NextConfig = {
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     config.resolve = config.resolve || {};
     config.resolve.alias = {
       ...(config.resolve.alias || {}),
       ...aliasMap,
     };
+
+    // Enable WASM support
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+    };
+
+    // WASM loader for .wasm files
+    config.module = config.module || {};
+    config.module.rules = config.module.rules || [];
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: "webassembly/async",
+    });
+
     return config;
   },
 };

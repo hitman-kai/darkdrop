@@ -38,14 +38,18 @@ const ctx: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobal
 
 let wasmReady = false;
 
-// Initialize WASM module
+// Initialize WASM module - import the .wasm file directly
+const wasmUrl = new URL("../lib/wasm/darkdrop_ct_proofs_bg.wasm", import.meta.url);
+
 (async () => {
   try {
-    await init();
+    await init(wasmUrl);
     init_panic_hook();
     wasmReady = true;
+    console.log("[CT Worker] WASM module initialized successfully");
     ctx.postMessage({ type: "wasm-ready" });
   } catch (error) {
+    console.error("[CT Worker] WASM init failed:", error);
     ctx.postMessage({
       type: "wasm-error",
       error: error instanceof Error ? error.message : "Failed to load WASM",
