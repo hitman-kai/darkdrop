@@ -38,12 +38,21 @@ const ctx: DedicatedWorkerGlobalScope = self as unknown as DedicatedWorkerGlobal
 
 let wasmReady = false;
 
-// Initialize WASM module - import the .wasm file directly
-const wasmUrl = new URL("../lib/wasm/darkdrop_ct_proofs_bg.wasm", import.meta.url);
-
+// Initialize WASM module - load from public folder with absolute URL
 (async () => {
   try {
-    await init(wasmUrl);
+    // Use location to construct absolute URL
+    const baseUrl = (self as any).location?.origin || "http://localhost:3001";
+    const wasmUrl = `${baseUrl}/darkdrop_ct_proofs_bg.wasm`;
+    console.log("[CT Worker] Loading WASM from:", wasmUrl);
+    
+    const wasmResponse = await fetch(wasmUrl);
+    if (!wasmResponse.ok) {
+      throw new Error(`Failed to fetch WASM: ${wasmResponse.status}`);
+    }
+    
+    const wasmBytes = await wasmResponse.arrayBuffer();
+    await init(wasmBytes);
     init_panic_hook();
     wasmReady = true;
     console.log("[CT Worker] WASM module initialized successfully");

@@ -104,6 +104,11 @@ export default function CreateDropPage() {
         } catch {
           units = 0n;
         }
+
+        // For preview, use a large balance (actual balance fetching requires connection)
+        // In production, would fetch actual token balance from blockchain
+        const previewBalance = units * 10n || 1000000n;
+
         const proof = await generateConfidentialProof({
           kind: "token2022-confidential-transfer",
           asset,
@@ -113,6 +118,7 @@ export default function CreateDropPage() {
           owner: publicKey?.toBase58(),
           destination: publicKey?.toBase58(),
           cluster,
+          sender_balance: previewBalance.toString(),
         });
         if (!cancelled) {
           setConfidentialNotes(proof.notes);

@@ -14,6 +14,7 @@ export type ProofJob = {
   mint?: string;
   owner?: string;
   destination?: string;
+  sender_balance?: string;
 };
 
 export type ProofResponse = {
