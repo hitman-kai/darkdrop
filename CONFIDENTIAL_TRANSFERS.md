@@ -1,4 +1,4 @@
-# 🎉 DarkDrop: First Browser-Based Solana Confidential Transfer App
+# DarkDrop: First Browser-Based Solana Confidential Transfer App
 
 ## Achievement
 
@@ -6,29 +6,29 @@ DarkDrop is the **world's first** web application capable of generating Solana T
 
 ## What's Working (v2-confidential branch)
 
-### ✅ WASM Proof Generation
+### WASM Proof Generation
 - **Rust module** (`darkdrop-ct-wasm`) wrapping `solana-zk-sdk`
 - **Three ZK proofs** fully implemented:
-  - ✅ Equality Proof (CiphertextCommitmentEquality)
-  - ✅ Validity Proof (BatchedGroupedCiphertext3HandlesValidity)
-  - ✅ Range Proof (BatchedRangeProofU128)
+  -  Equality Proof (CiphertextCommitmentEquality)
+  -  Validity Proof (BatchedGroupedCiphertext3HandlesValidity)
+  -  Range Proof (BatchedRangeProofU128)
 - **ElGamal encryption** for sender, recipient, auditor
 - **Pedersen commitments** for amount hiding
 - **Web Worker integration** for non-blocking proof generation
 
-### ✅ On-Chain Inspection
+###  On-Chain Inspection
 - Fetches Token-2022 mint state from blockchain
 - Detects ConfidentialTransfer extension on mint
 - Checks ATA for CT account extension
 - Shows configuration requirements in UI
 
-### ✅ UI/UX
+###  UI/UX
 - Private Mode toggle in drop creation
 - Real-time proof preview with mint inspection
 - Shows required steps for CT account initialization
 - Displays proof generation status
 
-### ✅ cUSDC Token-2022 Mint
+###  cUSDC Token-2022 Mint
 - Mint: `8vVxyKSPyyf5iXk2eQdi7KGbBr1okp8bseyjGNZSWahR`
 - Treasury: `AH5US8BCoGnLLJdRBp1mPg62XCodRQirBcn8JV4agwPw`
 - 6 decimals, auto-approve enabled
@@ -71,12 +71,12 @@ Solana Blockchain
 
 ## Implementation Status
 
-### Phase 1: Token-2022 cUSDC ✅ COMPLETE
+### Phase 1: Token-2022 cUSDC COMPLETE
 - Custom cUSDC mint with CT extension
 - Treasury management
 - Standard Token-2022 transfers
 
-### Phase 2: Confidential Transfers 🚧 90% COMPLETE
+### Phase 2: Confidential Transfers 90% COMPLETE
 
 **Completed:**
 - [x] WASM proof module (Rust → WebAssembly)
