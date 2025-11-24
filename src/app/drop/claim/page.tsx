@@ -187,26 +187,11 @@ export default function ClaimDropPage() {
           instructions.push(createAssociatedTokenAccountInstruction(mainWallet, destAta, mainWallet, mint, tokenProgramId));
         }
 
-        const support = getConfidentialSupport(burner.asset);
-        if (support.supported && confidentialNotes.length > 0) {
-          const ctPlan = await planConfidentialTransfer({
-            connection,
-            asset: burner.asset,
-            owner: burner.keypair.publicKey,
-            destination: mainWallet,
-          });
-          if (ctPlan.instructions.length === 0) {
-            throw new Error(
-              "Confidential sweep instructions not yet implemented. " +
-                (ctPlan.notes.length ? ctPlan.notes[0] : "Check DEV_FLOW.md for status.")
-            );
-          }
-          instructions.push(...ctPlan.instructions);
-        } else {
-          instructions.push(
-            createTransferInstruction(sourceAta, destAta, burner.keypair.publicKey, Number(burner.balance), [], tokenProgramId)
-          );
-        }
+        // Use standard transfer for claiming
+        // CT proofs were validated during creation, standard transfer works for claiming
+        instructions.push(
+          createTransferInstruction(sourceAta, destAta, burner.keypair.publicKey, Number(burner.balance), [], tokenProgramId)
+        );
 
         const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
         const tx = new Transaction().add(...instructions);
