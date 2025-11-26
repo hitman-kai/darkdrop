@@ -237,14 +237,24 @@ export default function CreateDropPage() {
         const configureInstructions: TransactionInstruction[] = [];
         if (privateMode && asset === "usdc") {
           const aesKey = deriveAESKey(burnerKeypair);
+          if (process.env.NODE_ENV !== "production") {
+            console.log("[CreateDrop] AES key length", aesKey.length);
+          }
           const aesKeyBase64 = base64FromBytes(aesKey);
+          if (process.env.NODE_ENV !== "production") {
+            console.log("[CreateDrop] AES key base64 length", aesKeyBase64.length);
+          }
           const configureProof = await generateConfigureAccountProof({
             kind: "token2022-confidential-configure",
             aesKey: aesKeyBase64,
           });
           configureNotes.push(...(configureProof.notes ?? []));
 
-          const metadata = configureProof.proof?.metadata ?? {};
+          if (!configureProof.ok || !configureProof.proof?.metadata) {
+            throw new Error(configureProof.notes?.join(" ") || "Configure proof failed.");
+          }
+
+          const metadata = configureProof.proof.metadata;
           const zeroBalanceProof =
             typeof metadata.zero_balance_proof === "string" ? metadata.zero_balance_proof : undefined;
           const decryptableZeroBalance =

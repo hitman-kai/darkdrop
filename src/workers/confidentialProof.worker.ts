@@ -163,37 +163,42 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     }
 
     if (payload.kind === "token2022-confidential-configure") {
-      const proofRequest = {
-        aes_key: payload.aesKey,
-      };
+      try {
+        const proofRequest = {
+          aes_key: payload.aesKey,
+        };
 
-      console.log("[CT Worker] Generating configure proof with:", proofRequest);
-      const proofResult = generate_configure_account_proof(JSON.stringify(proofRequest));
-      console.log("[CT Worker] Configure proof result:", proofResult);
-      notes.push(...(proofResult.notes || []));
-      notes.push("WASM configure proof generation executed successfully.");
+        console.log("[CT Worker] Generating configure proof with:", proofRequest);
+        const proofResult = generate_configure_account_proof(JSON.stringify(proofRequest));
+        console.log("[CT Worker] Configure proof result:", proofResult);
+        notes.push(...(proofResult.notes || []));
+        notes.push("WASM configure proof generation executed successfully.");
 
-      const preview = `wasm-configure-proof::${Date.now()}`;
+        const preview = `wasm-configure-proof::${Date.now()}`;
 
-      ctx.postMessage({
-        id,
-        result: {
-          ok: true,
-          proof: {
-            kind: payload.kind,
-            preview,
-            metadata: {
-              zero_balance_proof: proofResult.zero_balance_proof,
-              elgamal_pubkey: proofResult.elgamal_pubkey,
-              elgamal_keypair: proofResult.elgamal_keypair,
-              decryptable_zero_balance: proofResult.decryptable_zero_balance ?? null,
-              generated_aes_key: proofResult.generated_aes_key ?? null,
+        ctx.postMessage({
+          id,
+          result: {
+            ok: true,
+            proof: {
+              kind: payload.kind,
+              preview,
+              metadata: {
+                zero_balance_proof: proofResult.zero_balance_proof,
+                elgamal_pubkey: proofResult.elgamal_pubkey,
+                elgamal_keypair: proofResult.elgamal_keypair,
+                decryptable_zero_balance: proofResult.decryptable_zero_balance ?? null,
+                generated_aes_key: proofResult.generated_aes_key ?? null,
+              },
             },
+            notes,
           },
-          notes,
-        },
-      });
-      return;
+        });
+        return;
+      } catch (error) {
+        console.error("[CT Worker] Configure proof failed:", error);
+        throw error;
+      }
     }
 
     ctx.postMessage({
