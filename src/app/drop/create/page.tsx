@@ -326,7 +326,12 @@ export default function CreateDropPage() {
         );
         const tx = new Transaction().add(...instructions);
         tx.feePayer = publicKey;
-        signature = await sendTransaction(tx, connection, { skipPreflight: false });
+        try {
+          signature = await sendTransaction(tx, connection, { skipPreflight: false });
+        } catch (err) {
+          console.error("[CreateDrop] sendTransaction failed", err);
+          throw err;
+        }
       }
 
       await connection.confirmTransaction(signature, "confirmed");
