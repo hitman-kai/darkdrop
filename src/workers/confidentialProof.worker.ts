@@ -1,5 +1,7 @@
 /// <reference lib="webworker" />
 
+import { Buffer } from "buffer";
+
 import init, {
   init_panic_hook,
   generate_transfer_proof,
@@ -167,7 +169,10 @@ ctx.onmessage = async (event: MessageEvent<WorkerRequest>) => {
         const proofRequest = {
           aes_key: payload.aesKey,
         };
-
+        if (proofRequest.aes_key) {
+          const decodedLen = Buffer.from(proofRequest.aes_key, "base64").length;
+          console.log("[CT Worker] AES key base64 length", proofRequest.aes_key.length, "decoded bytes", decodedLen);
+        }
         console.log("[CT Worker] Generating configure proof with:", proofRequest);
         const proofResult = generate_configure_account_proof(JSON.stringify(proofRequest));
         console.log("[CT Worker] Configure proof result:", proofResult);
