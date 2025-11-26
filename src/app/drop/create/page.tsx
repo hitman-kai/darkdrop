@@ -30,7 +30,9 @@ import {
   getAssetMint,
   getAssetProgramId,
   getAssetSymbol,
+  getRpcEndpoint,
 } from "@/lib/tokens";
+import { uploadConfigureProofContext, uploadTransferProofContexts } from "@/lib/confidential/proof-context";
 import { useHistoryStore } from "@/store/history";
 import { useSettingsStore } from "@/store/settings";
 import { usePrivacyStore } from "@/store/privacy";
@@ -262,6 +264,13 @@ export default function CreateDropPage() {
       const dropPubkey = new PublicKey(drop.address);
       let signature = "";
       const configureNotes: string[] = [];
+      const helperNotes: string[] = [];
+      const rpcUrl = getRpcEndpoint(cluster);
+      let transferContextAccounts: {
+        equality: PublicKey;
+        validity: PublicKey;
+        range: PublicKey;
+      } | null = null;
 
       if (asset === "sol") {
         const lamports = Number(rawAmount);
@@ -322,7 +331,44 @@ export default function CreateDropPage() {
             throw new Error("Configure proof missing required fields.");
           }
 
+          const elgamalPubkey =
+            typeof metadata.elgamal_pubkey === "string" ? metadata.elgamal_pubkey : undefined;
+          if (!elgamalPubkey) {
+            throw new Error("Configure proof missing ElGamal pubkey.");
+          }
+
           drop = withElGamalKeypair(drop, elgamalKeypair, dropPassword);
+
+          let configureContextPubkey: PublicKey | undefined;
+          try {
+            const configureResponse = await uploadConfigureProofContext(
+              {
+                cluster,
+                mint: mintAddress,
+                payer: publicKey.toBase58(),
+                owner: dropPubkey.toBase58(),
+                token_account: toAta.toBase58(),
+                proof: {
+                  aes_key: aesKeyBase64,
+                  zero_balance_proof: zeroBalanceProof,
+                  elgamal_keypair: elgamalKeypair,
+                  elgamal_pubkey: elgamalPubkey,
+                  decryptable_zero_balance: decryptableZeroBalance,
+                },
+              },
+              rpcUrl
+            );
+            configureContextPubkey = new PublicKey(configureResponse.context.context);
+            helperNotes.push(
+              `Configure proof stored in context ${configureContextPubkey.toBase58()} (tx ${configureResponse.context.signature}).`
+            );
+          } catch (ctxError) {
+            throw new Error(
+              ctxError instanceof Error
+                ? `Failed to store configure proof context: ${ctxError.message}`
+                : "Failed to store configure proof context."
+            );
+          }
 
           const zeroProofBytes = bytesFromBase64(zeroBalanceProof);
           const decryptableZeroBytes = bytesFromBase64(decryptableZeroBalance);
@@ -333,6 +379,7 @@ export default function CreateDropPage() {
             accountAddress: toAta,
             zeroBalanceProof: zeroProofBytes,
             decryptableZeroBalance: decryptableZeroBytes,
+            zeroBalanceProofContext: configureContextPubkey,
           });
           configureInstructions.push(...configurePlan.instructions);
           configureNotes.push(...configurePlan.notes);
@@ -340,9 +387,63 @@ export default function CreateDropPage() {
 
         if (configureInstructions.length) {
           instructions.push(...configureInstructions);
+          if ((!privateMode || asset !== "usdc") && (configureNotes.length || helperNotes.length)) {
+            setConfidentialNotes([...helperNotes, ...configureNotes]);
+          }
         }
 
         if (privateMode && asset === "usdc" && proofData) {
+          if (
+            !proofData.newSourceDecryptableBalance ||
+            !proofData.transferAuditorCiphertextLo ||
+            !proofData.transferAuditorCiphertextHi
+          ) {
+            throw new Error("Proof metadata missing decryptable balance or auditor ciphertexts.");
+          }
+
+          if (!transferContextAccounts) {
+            try {
+              const transferResponse = await uploadTransferProofContexts(
+                {
+                  cluster,
+                  mint: mintAddress,
+                  payer: publicKey.toBase58(),
+                  owner: publicKey.toBase58(),
+                  source_token_account: fromAta.toBase58(),
+                  destination_token_account: toAta.toBase58(),
+                  amount: rawAmount.toString(),
+                  proofs: {
+                    equality_proof: proofData.equalityProof,
+                    validity_proof: proofData.validityProof,
+                    range_proof: proofData.rangeProof,
+                    new_source_balance: proofData.newSourceBalance,
+                    sender_elgamal_keypair: proofData.senderElGamalKeypair,
+                    new_source_decryptable_balance: proofData.newSourceDecryptableBalance,
+                    transfer_auditor_ciphertext_lo: proofData.transferAuditorCiphertextLo,
+                    transfer_auditor_ciphertext_hi: proofData.transferAuditorCiphertextHi,
+                  },
+                },
+                rpcUrl
+              );
+              transferContextAccounts = {
+                equality: new PublicKey(transferResponse.equality.context),
+                validity: new PublicKey(transferResponse.validity.context),
+                range: new PublicKey(transferResponse.range.context),
+              };
+              helperNotes.push(
+                `Equality proof context stored (tx ${transferResponse.equality.signature}).`,
+                `Validity proof context stored (tx ${transferResponse.validity.signature}).`,
+                `Range proof context stored (tx ${transferResponse.range.signature}).`
+              );
+            } catch (ctxError) {
+              throw new Error(
+                ctxError instanceof Error
+                  ? `Failed to store transfer proof contexts: ${ctxError.message}`
+                  : "Failed to store transfer proof contexts."
+              );
+            }
+          }
+
           // Use CT transfer with generated proofs
           const ctPlan = await planConfidentialTransfer({
             connection,
@@ -351,6 +452,7 @@ export default function CreateDropPage() {
             destination: dropPubkey,
             amount: rawAmount,
             proofData,
+            proofContextAccounts: transferContextAccounts ?? undefined,
           });
           if (ctPlan.instructions.length === 0) {
             throw new Error(
@@ -359,7 +461,7 @@ export default function CreateDropPage() {
             );
           }
           instructions.push(...ctPlan.instructions);
-          const aggregateNotes = [...configureNotes, ...ctPlan.notes];
+          const aggregateNotes = [...helperNotes, ...configureNotes, ...ctPlan.notes];
           if (aggregateNotes.length) {
             setConfidentialNotes(aggregateNotes);
           }

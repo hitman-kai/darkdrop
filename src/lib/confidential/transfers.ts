@@ -55,6 +55,11 @@ type BuildContext = {
     transferAuditorCiphertextLo?: string;
     transferAuditorCiphertextHi?: string;
   };
+  proofContextAccounts?: {
+    equality?: PublicKey;
+    validity?: PublicKey;
+    range?: PublicKey;
+  };
 };
 
 const DEFAULT_CONFIDENTIAL_CLUSTER: ClusterType = DEFAULT_CLUSTER;
@@ -359,6 +364,7 @@ export async function planConfidentialTransfer({
   destination,
   amount,
   proofData,
+  proofContextAccounts,
 }: BuildContext): Promise<ConfidentialTransferPlan> {
   const support = getConfidentialSupport(asset);
   if (!support.supported) {
@@ -412,6 +418,7 @@ export async function planConfidentialTransfer({
     owner,
     amount: amount ?? 0n,
     proofData,
+    proofContexts: proofContextAccounts,
   });
 
   if (ctTransfer.instructions.length > 0) {

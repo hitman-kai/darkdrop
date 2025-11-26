@@ -4,9 +4,12 @@ import type { Connection, PublicKey, TransactionInstruction } from "@solana/web3
 import {
   buildConfigureAccountInstruction,
   buildEnableCreditsInstruction,
-  buildCTTransferWithProofs,
   buildZeroCiphertextProofInstruction,
+  buildConfidentialTransferInstruction as buildCTTransferInstruction,
 } from "./ct-instructions";
+import { bytesFromBase64 } from "@/lib/base64";
+
+const CONFIGURE_INLINE_PROOF_OFFSET = -1;
 
 /**
  * Build the configure + approve + enable instruction sequence for a Token-2022
@@ -24,31 +27,45 @@ export async function buildConfidentialAccountInstructions(params: {
   accountAddress: PublicKey;
   zeroBalanceProof?: string | Uint8Array;
   decryptableZeroBalance?: string | Uint8Array;
+  zeroBalanceProofContext?: PublicKey;
 }): Promise<{ instructions: TransactionInstruction[]; notes: string[] }> {
   const notes: string[] = [];
   const instructions: TransactionInstruction[] = [];
 
   try {
-    const zeroProofBytes = normalizeBytes(params.zeroBalanceProof);
+    const requiresInlineProof = !params.zeroBalanceProofContext;
+    const zeroProofBytes = requiresInlineProof ? normalizeBytes(params.zeroBalanceProof) : null;
     const decryptableZeroBytes = normalizeBytes(params.decryptableZeroBalance);
 
-    if (!zeroProofBytes || !decryptableZeroBytes) {
+    if (!decryptableZeroBytes) {
+      notes.push("Missing decryptable zero balance - generate via WASM first.");
+      return { instructions: [], notes };
+    }
+
+    if (requiresInlineProof && !zeroProofBytes) {
       notes.push("Missing zero-balance proof - generate via WASM first");
       notes.push("Call generate_configure_account_proof() to get proof data");
       return { instructions: [], notes };
     }
 
-    // 1. Zero-ciphertext proof (must precede configure instruction)
-    instructions.push(buildZeroCiphertextProofInstruction(zeroProofBytes));
+    if (requiresInlineProof && zeroProofBytes) {
+      instructions.push(buildZeroCiphertextProofInstruction(zeroProofBytes));
+    }
 
-    // 2. Configure account with zero-balance proof reference
     instructions.push(
-      buildConfigureAccountInstruction(params.accountAddress, params.mint, params.owner, decryptableZeroBytes)
+      buildConfigureAccountInstruction(params.accountAddress, params.mint, params.owner, decryptableZeroBytes, {
+        proofInstructionOffset: requiresInlineProof ? CONFIGURE_INLINE_PROOF_OFFSET : 0,
+        proofContext: params.zeroBalanceProofContext,
+      })
     );
 
-    // 3. Enable confidential credits
     instructions.push(buildEnableCreditsInstruction(params.accountAddress, params.owner));
 
+    if (params.zeroBalanceProofContext) {
+      notes.push(`✓ Zero-ciphertext proof pre-verified via context ${params.zeroBalanceProofContext.toBase58()}`);
+    } else {
+      notes.push("✓ Added inline zero-ciphertext proof instruction");
+    }
     notes.push("✓ Built ConfigureConfidentialTransferAccount instruction");
     notes.push("✓ Built EnableConfidentialCredits instruction");
     notes.push("Account initialization ready for transaction");
@@ -86,6 +103,11 @@ export async function buildConfidentialTransferInstruction(params: {
     transferAuditorCiphertextLo?: string;
     transferAuditorCiphertextHi?: string;
   };
+  proofContexts?: {
+    equality?: PublicKey;
+    validity?: PublicKey;
+    range?: PublicKey;
+  };
 }): Promise<{ instructions: TransactionInstruction[]; notes: string[] }> {
   const notes: string[] = [];
 
@@ -95,52 +117,40 @@ export async function buildConfidentialTransferInstruction(params: {
     return { instructions: [], notes };
   }
 
-  // Import the actual instruction builders we created
-  const { buildCTTransferWithProofs } = await import("./ct-instructions");
-
   try {
-    console.log("[Instructions] Building CT transfer with proofData:", !!params.proofData);
-    
-    // Import instruction builders
-    const { buildCTTransferWithProofs } = await import("./ct-instructions");
-    
-    console.log("[Instructions] Import successful, building CT transfer with proofs");
-    console.log("[Instructions] Amount:", params.amount);
-    
-    // Decode base64 proofs from WASM
-    const equalityProof = Uint8Array.from(atob(params.proofData.equalityProof), (c) => c.charCodeAt(0));
-    const validityProof = Uint8Array.from(atob(params.proofData.validityProof), (c) => c.charCodeAt(0));
-    const rangeProof = Uint8Array.from(atob(params.proofData.rangeProof), (c) => c.charCodeAt(0));
+    if (
+      !params.proofData.newSourceDecryptableBalance ||
+      !params.proofData.transferAuditorCiphertextLo ||
+      !params.proofData.transferAuditorCiphertextHi
+    ) {
+      throw new Error("Proof metadata missing decryptable balance or auditor ciphertexts.");
+    }
 
-    console.log("[Instructions] Decoded proofs - Equality:", equalityProof.length, "Validity:", validityProof.length, "Range:", rangeProof.length);
+    if (
+      !params.proofContexts?.equality ||
+      !params.proofContexts?.validity ||
+      !params.proofContexts?.range
+    ) {
+      throw new Error("Proof contexts missing. Upload proofs via helper before building the transfer.");
+    }
 
-    // For new source decryptable balance, we need a 64-byte ElGamal ciphertext
-    // The WASM should provide this, but for now create a placeholder
-    // TODO: Get actual encrypted balance from WASM proof result
-    const newBalanceBytes = new Uint8Array(64);
-    const newBalance = BigInt(params.proofData.newSourceBalance);
-    const balanceView = new DataView(newBalanceBytes.buffer);
-    balanceView.setBigUint64(0, newBalance, true);
+    const decryptableBalance = bytesFromBase64(params.proofData.newSourceDecryptableBalance);
+    const auditorCiphertextLo = bytesFromBase64(params.proofData.transferAuditorCiphertextLo);
+    const auditorCiphertextHi = bytesFromBase64(params.proofData.transferAuditorCiphertextHi);
 
-    console.log("[Instructions] Building transaction with", 4, "instructions");
+    const instruction = buildCTTransferInstruction({
+      sourceAccount: params.from,
+      mint: params.mint,
+      destinationAccount: params.to,
+      owner: params.owner,
+      newSourceDecryptableBalance: decryptableBalance,
+      auditorCiphertextLo,
+      auditorCiphertextHi,
+      proofContexts: params.proofContexts,
+    });
 
-    // Build CT transfer (temporarily using standard transfer while perfecting proof format)
-    const instructions = buildCTTransferWithProofs(
-      params.from,
-      params.mint,
-      params.to,
-      params.owner,
-      params.amount,
-      6 // decimals
-    );
-
-    notes.push("✓ Decoded WASM proofs successfully");
-    notes.push("✓ Built proof verification instructions");
-    notes.push("✓ Built ConfidentialTransfer instruction");
-    notes.push(`Transfer ${params.amount} tokens with encrypted amount`);
-    notes.push("Transaction ready for signing and submission");
-
-    return { instructions, notes };
+    notes.push("✓ Built ConfidentialTransfer instruction referencing proof context accounts.");
+    return { instructions: [instruction], notes };
   } catch (error) {
     console.error("[Instructions] Error building CT transfer:", error);
     notes.push("Failed to build CT transfer instructions:");
@@ -152,45 +162,10 @@ export async function buildConfidentialTransferInstruction(params: {
   }
 }
 
-/**
- * Decode base64-encoded WASM proof data
- */
-function decodeProof(base64Proof: string): Uint8Array {
-  return Uint8Array.from(atob(base64Proof), (c) => c.charCodeAt(0));
-}
-
 function normalizeBytes(value?: string | Uint8Array): Uint8Array | null {
   if (!value) return null;
   if (value instanceof Uint8Array) {
     return value;
   }
   return Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
-}
-
-/**
- * Build proof verification instructions that must precede CT transfer
- * Uses Solana's ZK ElGamal Proof Program
- */
-async function buildProofVerificationInstructions(
-  equalityProof: string,
-  validityProof: string,
-  rangeProof: string
-): Promise<TransactionInstruction[]> {
-  // Decode base64 proofs from WASM
-  const equalityData = decodeProof(equalityProof);
-  const validityData = decodeProof(validityProof);
-  const rangeData = decodeProof(rangeProof);
-
-  // TODO: Create ProofInstruction transactions using ZK ElGamal Proof Program
-  // Program ID: ZkE1Gama1Proof11111111111111111111111111111
-  // Instructions:
-  // 1. VerifyCiphertextCommitmentEquality (equality proof)
-  // 2. VerifyBatchedGroupedCiphertext3HandlesValidity (validity proof)
-  // 3. VerifyBatchedRangeProofU128 (range proof)
-
-  void equalityData;
-  void validityData;
-  void rangeData;
-
-  return [];
 }
