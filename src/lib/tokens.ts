@@ -24,12 +24,14 @@ export const RPC_ENDPOINTS: Record<ClusterType, string> = {
   devnet: DEVNET_RPC || clusterApiUrl("devnet"),
 };
 
+const DEFAULT_DEVNET_CUSDC_MINT = "AvV96PCeHS32crtNXqf2Dgb4BanNRCL6hhHyc6vAh6TR";
+
 const CUSDC_MINTS: Record<ClusterType, string> = {
   mainnet:
     process.env.NEXT_PUBLIC_CUSDC_MAINNET_MINT ??
     process.env.NEXT_PUBLIC_USDC_MAINNET_MINT ??
     "",
-  devnet: process.env.NEXT_PUBLIC_CUSDC_DEVNET_MINT ?? "",
+  devnet: process.env.NEXT_PUBLIC_CUSDC_DEVNET_MINT ?? DEFAULT_DEVNET_CUSDC_MINT,
 };
 
 type AssetMeta =

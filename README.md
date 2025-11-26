@@ -62,6 +62,8 @@ Environment variables (optional):
 - NEXT_PUBLIC_CUSDC_DEVNET_MINT    – Token-2022 cUSDC mint on devnet (required for devnet drops)
 - NEXT_PUBLIC_DEFAULT_CLUSTER      – `mainnet` (default) or `devnet`
 
+The repo ships with a default devnet CT mint (`AvV96PCeHS32crtNXqf2Dgb4BanNRCL6hhHyc6vAh6TR`) that is already funded for the test wallet (`1KTJPpkyZsiTUbABYZEUpAZA2dUEqt4shXgoioHcTZm`). Override via env vars if you deploy your own mint.
+
 Devnet setup + mint creation walkthrough: [`docs/devnet-testing.md`](./docs/devnet-testing.md).
 
 Use Helius, QuickNode, or Triton for production traffic.
