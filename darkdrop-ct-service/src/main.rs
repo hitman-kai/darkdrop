@@ -1,9 +1,11 @@
 use std::{fs, path::PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
+use base64::engine::{general_purpose::STANDARD, Engine as _};
 use clap::{Parser, Subcommand};
 use serde::Deserialize;
-use base64::engine::{general_purpose::STANDARD, Engine as _};
+use solana_client::rpc_client::RpcClient;
+use solana_sdk::{commitment_config::CommitmentConfig, signature::read_keypair_file, signature::Keypair};
 
 #[derive(Debug, Parser)]
 #[command(name = "darkdrop-ct-service", version, about = "Utility for handling SPL Token-2022 Confidential Transfer proofs")]
@@ -14,7 +16,7 @@ struct Cli {
 
     /// Path to fee-payer keypair (JSON)
     #[arg(long, global = true)]
-    keypair: Option<PathBuf>,
+    keypair: PathBuf,
 
     #[command(subcommand)]
     command: Commands,
@@ -86,19 +88,25 @@ struct TransferProofPayload {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    match cli.command {
+    match &cli.command {
         Commands::Configure { input } => {
-            let job: ConfigureJob = load_json(&input)?;
+            let job: ConfigureJob = load_json(input)?;
             summarize_configure_job(&job);
-            // TODO: hook into actual configure pipeline
+            run_configure(&cli, &job).await?;
         }
         Commands::Transfer { input } => {
-            let job: TransferJob = load_json(&input)?;
+            let job: TransferJob = load_json(input)?;
             summarize_transfer_job(&job);
-            // TODO: hook into actual transfer pipeline
+            run_transfer(&cli, &job).await?;
         }
     }
     Ok(())
+}
+
+struct RpcContext {
+    client: RpcClient,
+    _payer: Keypair,
+    url: String,
 }
 
 fn load_json<T: for<'de> Deserialize<'de>>(path: &PathBuf) -> Result<T> {
@@ -154,4 +162,64 @@ fn summarize_transfer_job(job: &TransferJob) {
 
 fn decode_len(value: &str) -> usize {
     STANDARD.decode(value).map(|v| v.len()).unwrap_or_default()
+}
+
+async fn run_configure(cli: &Cli, job: &ConfigureJob) -> Result<()> {
+    let rpc = rpc_context(&job.cluster, cli.rpc_url.as_deref(), &cli.keypair)?;
+    let blockhash = rpc
+        .client
+        .get_latest_blockhash()
+        .context("failed to fetch blockhash")?;
+    println!("RPC [{}] ready. Latest blockhash: {}", rpc.url, blockhash);
+    println!(
+        "TODO: submit configure transaction for token account {}",
+        job.token_account
+    );
+    Ok(())
+}
+
+async fn run_transfer(cli: &Cli, job: &TransferJob) -> Result<()> {
+    let rpc = rpc_context(&job.cluster, cli.rpc_url.as_deref(), &cli.keypair)?;
+    let blockhash = rpc
+        .client
+        .get_latest_blockhash()
+        .context("failed to fetch blockhash")?;
+    println!("RPC [{}] ready. Latest blockhash: {}", rpc.url, blockhash);
+    println!(
+        "TODO: submit confidential transfer {} -> {} ({})",
+        job.source_token_account, job.destination_token_account, job.amount
+    );
+    Ok(())
+}
+
+fn rpc_context(cluster: &str, override_url: Option<&str>, keypair_path: &PathBuf) -> Result<RpcContext> {
+    let rpc_url = if let Some(url) = override_url {
+        url.to_owned()
+    } else {
+        default_rpc_url(cluster)?
+    };
+    let payer = read_keypair_file(keypair_path).map_err(|err| {
+        anyhow!(
+            "failed to read keypair {}: {}",
+            keypair_path.display(),
+            err
+        )
+    })?;
+    let client = RpcClient::new_with_commitment(rpc_url.clone(), CommitmentConfig::confirmed());
+    Ok(RpcContext {
+        client,
+        _payer: payer,
+        url: rpc_url,
+    })
+}
+
+fn default_rpc_url(cluster: &str) -> Result<String> {
+    match cluster.to_lowercase().as_str() {
+        "devnet" => Ok("https://api.devnet.solana.com".to_string()),
+        "testnet" => Ok("https://api.testnet.solana.com".to_string()),
+        "mainnet" | "mainnet-beta" | "mainnetbeta" => {
+            Ok("https://api.mainnet-beta.solana.com".to_string())
+        }
+        other => bail!("unknown cluster '{}', provide --rpc-url", other),
+    }
 }
