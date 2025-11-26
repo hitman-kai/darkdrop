@@ -324,8 +324,11 @@ export default function CreateDropPage() {
             lamports: CUSDC_FEE_BUFFER_LAMPORTS,
           })
         );
-        const tx = new Transaction().add(...instructions);
-        tx.feePayer = publicKey;
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+        const tx = new Transaction({ feePayer: publicKey, blockhash, lastValidBlockHeight }).add(
+          ...instructions
+        );
+        tx.partialSign(burnerKeypair);
         try {
           signature = await sendTransaction(tx, connection, { skipPreflight: false });
         } catch (err) {
