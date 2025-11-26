@@ -83,6 +83,8 @@ export default function CreateDropPage() {
   const decimals = getAssetDecimals(asset);
   const symbol = getAssetSymbol(asset);
   const confidentialSupport = getConfidentialSupport(asset);
+  const confidentialSupported = confidentialSupport.supported;
+  const confidentialSupportReason = confidentialSupport.reason;
   const mintAddress = useMemo(() => getAssetMint(asset, cluster), [asset, cluster]);
 
   const handleAssetChange = (next: AssetSymbol) => {
@@ -92,24 +94,24 @@ export default function CreateDropPage() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!privateMode) {
-      setConfidentialNotes(
-        confidentialSupport.supported ? [] : confidentialSupport.reason ? [confidentialSupport.reason] : []
-      );
-      setPrivacyPending(false);
-      return;
-    }
-    if (!confidentialSupport.supported) {
-      setConfidentialNotes(confidentialSupport.reason ? [confidentialSupport.reason] : []);
-      setPrivacyPending(false);
-      return;
-    }
-    if (!mintAddress) {
-      setConfidentialNotes(["Missing cUSDC mint configuration."]);
-      setPrivacyPending(false);
-      return;
-    }
-    const run = async () => {
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanupTimer = () => {
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+    };
+
+    const scheduleRetry = (attempt: number) => {
+      cleanupTimer();
+      if (typeof window === "undefined") return;
+      retryTimer = window.setTimeout(() => {
+        run(attempt + 1);
+      }, 700);
+    };
+
+    const run = async (attempt = 0) => {
       setPrivacyPending(true);
       try {
         let units = 0n;
@@ -119,8 +121,6 @@ export default function CreateDropPage() {
           units = 0n;
         }
 
-        // For preview, use a large balance (actual balance fetching requires connection)
-        // In production, would fetch actual token balance from blockchain
         const previewBalance = units * 10n || 1000000n;
 
         const proof = await generateConfidentialProof({
@@ -134,35 +134,47 @@ export default function CreateDropPage() {
           cluster,
           senderBalance: previewBalance.toString(),
         });
-        if (!cancelled) {
-          setConfidentialNotes(proof.notes);
-          setPrivacyPending(false);
-          
-          // Save proof data for use in transaction
-          if (proof.proof?.metadata) {
-            const meta = proof.proof.metadata;
-            if (meta.equality_proof && meta.validity_proof && meta.range_proof) {
-              setProofData({
-                equalityProof: String(meta.equality_proof),
-                validityProof: String(meta.validity_proof),
-                rangeProof: String(meta.range_proof),
-                newSourceBalance: String(meta.new_source_balance),
-                senderElGamalKeypair: String(meta.sender_elgamal_keypair),
-                newSourceDecryptableBalance: meta.new_source_decryptable_balance
-                  ? String(meta.new_source_decryptable_balance)
-                  : undefined,
-                transferAuditorCiphertextLo: meta.transfer_auditor_ciphertext_lo
-                  ? String(meta.transfer_auditor_ciphertext_lo)
-                  : undefined,
-                transferAuditorCiphertextHi: meta.transfer_auditor_ciphertext_hi
-                  ? String(meta.transfer_auditor_ciphertext_hi)
-                  : undefined,
-              });
-            }
+
+        if (cancelled) {
+          return;
+        }
+
+        const notReady =
+          proof.notes?.some((note) => note.toLowerCase().includes("wasm module not ready yet")) ?? false;
+        if (!proof.ok && notReady && attempt < 5) {
+          setConfidentialNotes(["WASM proof worker warming up. Retrying…"]);
+          scheduleRetry(attempt);
+          return;
+        }
+
+        cleanupTimer();
+        setConfidentialNotes(proof.notes);
+        setPrivacyPending(false);
+
+        if (proof.proof?.metadata) {
+          const meta = proof.proof.metadata;
+          if (meta.equality_proof && meta.validity_proof && meta.range_proof) {
+            setProofData({
+              equalityProof: String(meta.equality_proof),
+              validityProof: String(meta.validity_proof),
+              rangeProof: String(meta.range_proof),
+              newSourceBalance: String(meta.new_source_balance),
+              senderElGamalKeypair: String(meta.sender_elgamal_keypair),
+              newSourceDecryptableBalance: meta.new_source_decryptable_balance
+                ? String(meta.new_source_decryptable_balance)
+                : undefined,
+              transferAuditorCiphertextLo: meta.transfer_auditor_ciphertext_lo
+                ? String(meta.transfer_auditor_ciphertext_lo)
+                : undefined,
+              transferAuditorCiphertextHi: meta.transfer_auditor_ciphertext_hi
+                ? String(meta.transfer_auditor_ciphertext_hi)
+                : undefined,
+            });
           }
         }
       } catch (proofError) {
         if (!cancelled) {
+          cleanupTimer();
           setConfidentialNotes([
             proofError instanceof Error ? proofError.message : "Unable to build proof preview.",
           ]);
@@ -170,11 +182,52 @@ export default function CreateDropPage() {
         }
       }
     };
+
+    if (!privateMode) {
+      setConfidentialNotes(confidentialSupported ? [] : confidentialSupportReason ? [confidentialSupportReason] : []);
+      setPrivacyPending(false);
+      return () => {
+        cancelled = true;
+        cleanupTimer();
+      };
+    }
+
+    if (!confidentialSupported) {
+      setConfidentialNotes(confidentialSupportReason ? [confidentialSupportReason] : []);
+      setPrivacyPending(false);
+      return () => {
+        cancelled = true;
+        cleanupTimer();
+      };
+    }
+
+    if (!mintAddress) {
+      setConfidentialNotes(["Missing cUSDC mint configuration."]);
+      setPrivacyPending(false);
+      return () => {
+        cancelled = true;
+        cleanupTimer();
+      };
+    }
+
     run();
+
     return () => {
       cancelled = true;
+      cleanupTimer();
     };
-  }, [asset, amount, decimals, privateMode, mintAddress, publicKey, cluster]);
+  }, [
+    asset,
+    amount,
+    decimals,
+    privateMode,
+    mintAddress,
+    publicKey,
+    cluster,
+    confidentialSupported,
+    confidentialSupportReason,
+    setPrivacyPending,
+  ]);
 
   const handleCreate = async () => {
     if (!connected || !publicKey) {
