@@ -14,3 +14,4 @@ base64 = "0.22"
 solana-client = "2.1.1"
 solana-sdk = "2.1.1"
 openssl = { version = "0.10", features = ["vendored"] }
+solana-zk-sdk = { path = "../../solana-zk-sdk-4.0.0" }
