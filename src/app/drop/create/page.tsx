@@ -385,6 +385,14 @@ export default function CreateDropPage() {
           ...instructions
         );
         tx.partialSign(burnerKeypair);
+        if (process.env.NODE_ENV !== "production") {
+          try {
+            const txSize = tx.serialize({ requireAllSignatures: false }).length;
+            console.log("[CreateDrop] Transaction size (bytes)", txSize);
+          } catch (sizeErr) {
+            console.warn("[CreateDrop] Failed to measure transaction size", sizeErr);
+          }
+        }
         try {
           signature = await sendTransaction(tx, connection, { skipPreflight: false });
         } catch (err) {
