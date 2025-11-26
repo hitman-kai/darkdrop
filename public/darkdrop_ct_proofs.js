@@ -182,26 +182,15 @@ function getArrayU8FromWasm0(ptr, len) {
     return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
 }
 
+export function init_panic_hook() {
+    wasm.init_panic_hook();
+}
+
 function takeFromExternrefTable0(idx) {
     const value = wasm.__wbindgen_externrefs.get(idx);
     wasm.__externref_table_dealloc(idx);
     return value;
 }
-/**
- * Generate zero-balance proof for account configuration
- * @param {string} request_json
- * @returns {any}
- */
-export function generate_configure_account_proof(request_json) {
-    const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.generate_configure_account_proof(ptr0, len0);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
 /**
  * Generate proofs for confidential transfer (Equality + Validity + Range)
  * @param {string} request_json
@@ -217,8 +206,19 @@ export function generate_transfer_proof(request_json) {
     return takeFromExternrefTable0(ret[0]);
 }
 
-export function init_panic_hook() {
-    wasm.init_panic_hook();
+/**
+ * Generate zero-balance proof for account configuration
+ * @param {string} request_json
+ * @returns {any}
+ */
+export function generate_configure_account_proof(request_json) {
+    const ptr0 = passStringToWasm0(request_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.generate_configure_account_proof(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
 }
 
 function _assertClass(instance, klass) {
@@ -310,7 +310,7 @@ export class AeKey {
     /**
      * Generates a random authenticated encryption key.
      *
-     * This function is randomized. It internally samples a scalar element using `OsRng`.
+     * This function is randomized. It internally samples a 128-bit key using `OsRng`.
      * @returns {AeKey}
      */
     static newRand() {
@@ -2000,11 +2000,11 @@ export class GroupedElGamalCiphertext2Handles {
      * @param {PedersenOpening} opening
      * @returns {GroupedElGamalCiphertext2Handles}
      */
-    static encryptionWithU64(first_pubkey, second_pubkey, amount, opening) {
+    static encryptWithU64(first_pubkey, second_pubkey, amount, opening) {
         _assertClass(first_pubkey, ElGamalPubkey);
         _assertClass(second_pubkey, ElGamalPubkey);
         _assertClass(opening, PedersenOpening);
-        const ret = wasm.groupedelgamalciphertext2handles_encryptionWithU64(first_pubkey.__wbg_ptr, second_pubkey.__wbg_ptr, amount, opening.__wbg_ptr);
+        const ret = wasm.groupedelgamalciphertext2handles_encryptWithU64(first_pubkey.__wbg_ptr, second_pubkey.__wbg_ptr, amount, opening.__wbg_ptr);
         return GroupedElGamalCiphertext2Handles.__wrap(ret);
     }
 }
@@ -2057,74 +2057,16 @@ export class GroupedElGamalCiphertext3Handles {
      * @param {PedersenOpening} opening
      * @returns {GroupedElGamalCiphertext3Handles}
      */
-    static encryptionWithU64(first_pubkey, second_pubkey, third_pubkey, amount, opening) {
+    static encryptWithU64(first_pubkey, second_pubkey, third_pubkey, amount, opening) {
         _assertClass(first_pubkey, ElGamalPubkey);
         _assertClass(second_pubkey, ElGamalPubkey);
         _assertClass(third_pubkey, ElGamalPubkey);
         _assertClass(opening, PedersenOpening);
-        const ret = wasm.groupedelgamalciphertext3handles_encryptionWithU64(first_pubkey.__wbg_ptr, second_pubkey.__wbg_ptr, third_pubkey.__wbg_ptr, amount, opening.__wbg_ptr);
+        const ret = wasm.groupedelgamalciphertext3handles_encryptWithU64(first_pubkey.__wbg_ptr, second_pubkey.__wbg_ptr, third_pubkey.__wbg_ptr, amount, opening.__wbg_ptr);
         return GroupedElGamalCiphertext3Handles.__wrap(ret);
     }
 }
 if (Symbol.dispose) GroupedElGamalCiphertext3Handles.prototype[Symbol.dispose] = GroupedElGamalCiphertext3Handles.prototype.free;
-
-const InstructionFinalization = (typeof FinalizationRegistry === 'undefined')
-    ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_instruction_free(ptr >>> 0, 1));
-/**
- * wasm-bindgen version of the Instruction struct.
- * This duplication is required until https://github.com/rustwasm/wasm-bindgen/issues/3671
- * is fixed. This must not diverge from the regular non-wasm Instruction struct.
- */
-export class Instruction {
-
-    __destroy_into_raw() {
-        const ptr = this.__wbg_ptr;
-        this.__wbg_ptr = 0;
-        InstructionFinalization.unregister(this);
-        return ptr;
-    }
-
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_instruction_free(ptr, 0);
-    }
-}
-if (Symbol.dispose) Instruction.prototype[Symbol.dispose] = Instruction.prototype.free;
-
-const InstructionsFinalization = (typeof FinalizationRegistry === 'undefined')
-    ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_instructions_free(ptr >>> 0, 1));
-
-export class Instructions {
-
-    __destroy_into_raw() {
-        const ptr = this.__wbg_ptr;
-        this.__wbg_ptr = 0;
-        InstructionsFinalization.unregister(this);
-        return ptr;
-    }
-
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_instructions_free(ptr, 0);
-    }
-    constructor() {
-        const ret = wasm.instructions_constructor();
-        this.__wbg_ptr = ret >>> 0;
-        InstructionsFinalization.register(this, this.__wbg_ptr, this);
-        return this;
-    }
-    /**
-     * @param {Instruction} instruction
-     */
-    push(instruction) {
-        _assertClass(instruction, Instruction);
-        var ptr0 = instruction.__destroy_into_raw();
-        wasm.instructions_push(this.__wbg_ptr, ptr0);
-    }
-}
-if (Symbol.dispose) Instructions.prototype[Symbol.dispose] = Instructions.prototype.free;
 
 const PedersenFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
@@ -2236,7 +2178,7 @@ const PercentageWithCapProofFinalization = (typeof FinalizationRegistry === 'und
  * The proof consists of two main components: `percentage_max_proof` and
  * `percentage_equality_proof`. If the committed amount is greater than the maximum cap value,
  * then the `percentage_max_proof` is properly generated and `percentage_equality_proof` is
- * simulated. If the encrypted amount is smaller than the maximum cap bound, the
+ * simulated. If the committed amount is smaller than the maximum cap bound, the
  * `percentage_equality_proof` is properly generated and `percentage_max_proof` is simulated.
  */
 export class PercentageWithCapProof {
@@ -3182,92 +3124,6 @@ export class PodZeroCiphertextProof {
 }
 if (Symbol.dispose) PodZeroCiphertextProof.prototype[Symbol.dispose] = PodZeroCiphertextProof.prototype.free;
 
-const PubkeyFinalization = (typeof FinalizationRegistry === 'undefined')
-    ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_pubkey_free(ptr >>> 0, 1));
-/**
- * The address of a [Solana account][acc].
- *
- * Some account addresses are [ed25519] public keys, with corresponding secret
- * keys that are managed off-chain. Often, though, account addresses do not
- * have corresponding secret keys &mdash; as with [_program derived
- * addresses_][pdas] &mdash; or the secret key is not relevant to the operation
- * of a program, and may have even been disposed of. As running Solana programs
- * can not safely create or manage secret keys, the full [`Keypair`] is not
- * defined in `solana-program` but in `solana-sdk`.
- *
- * [acc]: https://solana.com/docs/core/accounts
- * [ed25519]: https://ed25519.cr.yp.to/
- * [pdas]: https://solana.com/docs/core/cpi#program-derived-addresses
- * [`Keypair`]: https://docs.rs/solana-sdk/latest/solana_sdk/signer/keypair/struct.Keypair.html
- */
-export class Pubkey {
-
-    __destroy_into_raw() {
-        const ptr = this.__wbg_ptr;
-        this.__wbg_ptr = 0;
-        PubkeyFinalization.unregister(this);
-        return ptr;
-    }
-
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_pubkey_free(ptr, 0);
-    }
-    /**
-     * Create a new Pubkey object
-     *
-     * * `value` - optional public key as a base58 encoded string, `Uint8Array`, `[number]`
-     * @param {any} value
-     */
-    constructor(value) {
-        const ret = wasm.pubkey_constructor(value);
-        if (ret[2]) {
-            throw takeFromExternrefTable0(ret[1]);
-        }
-        this.__wbg_ptr = ret[0] >>> 0;
-        PubkeyFinalization.register(this, this.__wbg_ptr, this);
-        return this;
-    }
-    /**
-     * Checks if two `Pubkey`s are equal
-     * @param {Pubkey} other
-     * @returns {boolean}
-     */
-    equals(other) {
-        _assertClass(other, Pubkey);
-        const ret = wasm.pubkey_equals(this.__wbg_ptr, other.__wbg_ptr);
-        return ret !== 0;
-    }
-    /**
-     * Return the `Uint8Array` representation of the public key
-     * @returns {Uint8Array}
-     */
-    toBytes() {
-        const ret = wasm.pubkey_toBytes(this.__wbg_ptr);
-        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
-        return v1;
-    }
-    /**
-     * Return the base58 string representation of the public key
-     * @returns {string}
-     */
-    toString() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.pubkey_toString(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-}
-if (Symbol.dispose) Pubkey.prototype[Symbol.dispose] = Pubkey.prototype.free;
-
 const PubkeyValidityProofFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_pubkeyvalidityproof_free(ptr >>> 0, 1));
@@ -3577,7 +3433,7 @@ const ZeroCiphertextProofDataFinalization = (typeof FinalizationRegistry === 'un
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_zerociphertextproofdata_free(ptr >>> 0, 1));
 /**
- * The instruction data that is needed for the `ProofInstruction::ZeroCiphertext` instruction.
+ * The instruction data that is needed for the `ProofInstruction::VerifyZeroCiphertext` instruction.
  *
  * It includes the cryptographic proof as well as the context data information needed to verify
  * the proof.
