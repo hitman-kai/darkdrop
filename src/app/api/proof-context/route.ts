@@ -49,6 +49,8 @@ function buildCliArgs(mode: Mode, inputPath: string, rpcUrl?: string) {
       throw new Error(`Unsupported mode ${mode}`);
   }
 
+  console.log("[ProofContext API] helper env", { helperBin, keypairPath });
+
   if (helperBin) {
     return {
       command: helperBin,
