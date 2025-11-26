@@ -1,0 +1,20 @@
+{
+  "cluster": "devnet",
+  "mint": "AvV96PCeHS32crtNXqf2Dgb4BanNRCL6hhHyc6vAh6TR",
+  "payer": "1KTJPpkyZsiTUbABYZEUpAZA2dUEqt4shXgoioHcTZm",
+  "owner": "1KTJPpkyZsiTUbABYZEUpAZA2dUEqt4shXgoioHcTZm",
+  "sourceTokenAccount": "5GfB0aJgs5qUWJBcJggY9X6hbcvx2yQ7W4NuxhK2ZKTr",
+  "destinationTokenAccount": "6fZaPxK8sdu3ISeNRqqQZkKps45E57VEd5jUhbDHbPuc",
+  "amount": "1000000",
+  "proofs": {
+    "equality_proof": "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=",
+    "validity_proof": "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo=",
+    "range_proof": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    "new_source_balance": "9000000",
+    "sender_elgamal_keypair": "eHl6d3Z1dHNycXFwb25tYmFramloZw==",
+    "new_source_decryptable_balance": "QkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWjAxMjM=",
+    "transfer_auditor_ciphertext_lo": "d3p5eHh3enl4eHd6eXh4d3p5eHh3enl4",
+    "transfer_auditor_ciphertext_hi": "d3p5eHh3enl4eHd6eXh4d3p5eHh3enl4"
+  }
+}
+

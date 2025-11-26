@@ -1,0 +1,15 @@
+{
+  "cluster": "devnet",
+  "mint": "AvV96PCeHS32crtNXqf2Dgb4BanNRCL6hhHyc6vAh6TR",
+  "payer": "1KTJPpkyZsiTUbABYZEUpAZA2dUEqt4shXgoioHcTZm",
+  "owner": "1KTJPpkyZsiTUbABYZEUpAZA2dUEqt4shXgoioHcTZm",
+  "tokenAccount": "5GfB0aJgs5qUWJBcJggY9X6hbcvx2yQ7W4NuxhK2ZKTr",
+  "proof": {
+    "aes_key": "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=",
+    "zero_balance_proof": "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo=",
+    "elgamal_keypair": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    "elgamal_pubkey": "eHl6d3Z1dHNycXFwb25tYmFramloZw==",
+    "decryptable_zero_balance": "QkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWjAxMjM="
+  }
+}
+
