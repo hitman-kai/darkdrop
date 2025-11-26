@@ -10,12 +10,13 @@ import { RefreshCcw, Shield, ShieldAlert, ShieldOff } from "lucide-react";
 import { ConfidentialPreviewCard } from "@/components/ConfidentialPreviewCard";
 import { DropCard } from "@/components/DropCard";
 import { QRScanner } from "@/components/QRScanner";
+import { ClusterToggle } from "@/components/ClusterToggle";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { unitsToAmount } from "@/lib/amount";
 import { claimDrop } from "@/lib/drop";
 import { AssetSymbol, ClusterType, CLUSTER_LABELS, getAssetDecimals, getAssetMint, getAssetProgramId, getAssetSymbol } from "@/lib/tokens";
 
-import { getConfidentialSupport, planConfidentialAccount, planConfidentialTransfer } from "@/lib/confidential/transfers";
+import { getConfidentialSupport, planConfidentialAccount } from "@/lib/confidential/transfers";
 import { useBurnerStore } from "@/store/burner";
 import { useHistoryStore } from "@/store/history";
 import { useSettingsStore } from "@/store/settings";
@@ -36,6 +37,7 @@ export default function ClaimDropPage() {
   const updateDropStatus = useHistoryStore((state) => state.updateDropStatus);
   const addClaimedDrop = useHistoryStore((state) => state.addClaimedDrop);
   const cluster = useSettingsStore((state) => state.cluster);
+  const setCluster = useSettingsStore((state) => state.setCluster);
 
   const [claimCode, setClaimCode] = useState("");
   const [password, setPassword] = useState("");
@@ -70,7 +72,8 @@ export default function ClaimDropPage() {
       });
 
       if (parsed.cluster !== cluster) {
-        setError(`Drop was created on ${CLUSTER_LABELS[parsed.cluster]}, which DarkDrop no longer supports.`);
+        setCluster(parsed.cluster);
+        setError(`Switched network to ${CLUSTER_LABELS[parsed.cluster]}. Reconnect your wallet if needed, then load again.`);
         return;
       }
 
@@ -243,6 +246,10 @@ export default function ClaimDropPage() {
       </div>
 
       <DropCard title="SCAN OR PASTE" subtitle="Load claim string manually or via camera.">
+        <div className="mb-4 flex flex-col gap-2 text-xs text-[rgba(224,224,224,0.7)]">
+          <p className="tracking-[0.3em]">NETWORK</p>
+          <ClusterToggle />
+        </div>
         <label className="block text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
           CLAIM CODE
           <textarea
@@ -250,7 +257,7 @@ export default function ClaimDropPage() {
             onChange={(event) => setClaimCode(event.target.value)}
             rows={4}
             className="mt-2 w-full"
-            placeholder="darkdrop:v1:mainnet:usdc:raw:..."
+            placeholder={`darkdrop:v1:${cluster}:usdc:raw:...`}
           />
         </label>
         <label className="block text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">

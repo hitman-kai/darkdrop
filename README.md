@@ -7,7 +7,7 @@ https://darkdrop.app
 
 ## DESCRIPTION
 
-DarkDrop enables irreversible, anonymous value transfers on Solana mainnet using temporary burner keypairs.
+DarkDrop enables irreversible, anonymous value transfers on Solana mainnet or devnet using temporary burner keypairs.
 
 The sender funds a freshly generated keypair and receives a claim code (base58 private key or AES-encrypted variant).  
 The receiver imports the burner, sweeps funds to their main wallet, and the burner is discarded.
@@ -23,7 +23,7 @@ Mathematical privacy extensions (Token-2022 confidential transfers + Light Proto
 - Temporary burner import with one-click sweep and purge
 - LocalStorage history (50 latest actions, per-browser)
 - Full PWA â€” installable, offline-capable
-- Mainnet-only Â· No devnet fallback
+- Mainnet + Devnet toggle (select at runtime)
 
 ## ROADMAP
 
@@ -43,7 +43,7 @@ npm run dev -- --hostname 0.0.0.0 --port 3000
 ```
 
 Visit http://localhost:3000  
-Wallet must be set to mainnet.
+Set your wallet to match the selected cluster (Mainnet Beta or Devnet).
 
 ## PRODUCTION DEPLOYMENT
 
@@ -56,8 +56,13 @@ Recommended: Vercel (current deployment method) or static export behind Nginx.
 
 Environment variables (optional):
 
-- NEXT_PUBLIC_SOLANA_MAINNET_RPC   – Custom RPC endpoint (default: public fallback)
-- NEXT_PUBLIC_CUSDC_MAINNET_MINT   – Token-2022 cUSDC mint (required; set manually, falls back to legacy NEXT_PUBLIC_USDC_MAINNET_MINT if defined)
+- NEXT_PUBLIC_SOLANA_MAINNET_RPC   – Custom Mainnet RPC endpoint (default: public fallback)
+- NEXT_PUBLIC_SOLANA_DEVNET_RPC    – Custom Devnet RPC endpoint (default: api.devnet.solana.com)
+- NEXT_PUBLIC_CUSDC_MAINNET_MINT   – Token-2022 cUSDC mint on mainnet (required; falls back to NEXT_PUBLIC_USDC_MAINNET_MINT if set)
+- NEXT_PUBLIC_CUSDC_DEVNET_MINT    – Token-2022 cUSDC mint on devnet (required for devnet drops)
+- NEXT_PUBLIC_DEFAULT_CLUSTER      – `mainnet` (default) or `devnet`
+
+Devnet setup + mint creation walkthrough: [`docs/devnet-testing.md`](./docs/devnet-testing.md).
 
 Use Helius, QuickNode, or Triton for production traffic.
 

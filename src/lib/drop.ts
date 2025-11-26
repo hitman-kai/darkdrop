@@ -4,7 +4,7 @@ import bs58 from "bs58";
 import nacl from "tweetnacl";
 
 import { decryptPrivateKey, encryptPrivateKey } from "@/lib/encryption";
-import { AssetSymbol, ClusterType, DEFAULT_ASSET, DEFAULT_CLUSTER } from "@/lib/tokens";
+import { AssetSymbol, ClusterType, DEFAULT_ASSET, DEFAULT_CLUSTER, clusterList } from "@/lib/tokens";
 
 const CODE_PREFIX = "darkdrop";
 const CODE_VERSION = "v2";
@@ -103,7 +103,8 @@ type ClaimOptions = {
   fallbackCluster?: ClusterType;
 };
 
-const parseCluster = (value: string): ClusterType => (value === "mainnet" ? "mainnet" : DEFAULT_CLUSTER);
+const parseCluster = (value: string): ClusterType =>
+  clusterList.includes(value as ClusterType) ? (value as ClusterType) : DEFAULT_CLUSTER;
 const parseAsset = (value: string): AssetSymbol => (value === "usdc" ? "usdc" : "sol");
 
 function claimLegacyV1(code: string, options?: ClaimOptions): ClaimedDrop {

@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // WASM output:
     "src/lib/wasm/**",
+    "public/darkdrop_ct_proofs.js",
   ]),
 ]);
 

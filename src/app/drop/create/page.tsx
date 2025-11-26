@@ -11,6 +11,7 @@ import { DropCard } from "@/components/DropCard";
 import { ConfidentialPreviewCard } from "@/components/ConfidentialPreviewCard";
 import { QRDisplay } from "@/components/QRDisplay";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
+import { ClusterToggle } from "@/components/ClusterToggle";
 import { amountToUnits } from "@/lib/amount";
 import { generateDrop, type DropPayload, withElGamalKeypair } from "@/lib/drop";
 import { deriveAESKey } from "@/lib/confidential/aes";
@@ -36,9 +37,9 @@ import { usePrivacyStore } from "@/store/privacy";
 
 const CUSDC_FEE_BUFFER_LAMPORTS = Math.round(0.002 * LAMPORTS_PER_SOL);
 
-const explorerUrl = (signature: string) => {
+const explorerUrl = (signature: string, cluster: ClusterType) => {
   const base = `https://solscan.io/tx/${signature}`;
-  return base;
+  return cluster === "mainnet" ? base : `${base}?cluster=${cluster}`;
 };
 
 type DropResult = DropPayload & {
@@ -187,7 +188,9 @@ export default function CreateDropPage() {
     try {
       const walletAccount = await connection.getAccountInfo(publicKey, "confirmed");
       if (!walletAccount) {
-        throw new Error("Wallet not found on Solana Mainnet Beta. Switch your wallet network and ensure it holds mainnet SOL (and cUSDC if needed).");
+        throw new Error(
+          `Wallet not found on Solana ${CLUSTER_LABELS[cluster]}. Switch your wallet network and ensure it holds SOL (and cUSDC if needed).`
+        );
       }
 
       const rawAmount = amountToUnits(amount, decimals);
@@ -353,7 +356,7 @@ export default function CreateDropPage() {
         status: "pending",
       });
     } catch (txError) {
-      setError(normalizeTxError(txError));
+      setError(normalizeTxError(txError, cluster));
     } finally {
       setProcessing(false);
     }
@@ -386,7 +389,11 @@ export default function CreateDropPage() {
           .map((key) => ASSETS[key].symbol)
           .join(", ")}.`}
       >
-        <div className="flex flex-wrap gap-2 text-xs">
+        <div className="flex flex-col gap-2 text-xs text-[rgba(224,224,224,0.7)]">
+          <p className="tracking-[0.3em]">NETWORK</p>
+          <ClusterToggle />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2 text-xs">
           {assetList.map((key) => (
             <button
               key={key}
@@ -472,7 +479,7 @@ export default function CreateDropPage() {
               <p>
                 Transfer signature:{" "}
                 <a
-                  href={explorerUrl(result.signature)}
+                  href={explorerUrl(result.signature, result.cluster)}
                   target="_blank"
                   rel="noreferrer"
                   className="text-[var(--accent)] underline"
@@ -492,15 +499,16 @@ export default function CreateDropPage() {
 const CODE_PREVIEW = (cluster: ClusterType, asset: AssetSymbol) =>
   `darkdrop:v1:${cluster}:${asset}:raw:...`;
 
-const normalizeTxError = (error: unknown): string => {
+const normalizeTxError = (error: unknown, cluster: ClusterType): string => {
   if (error instanceof Error) {
     const message = error.message;
     const lower = message.toLowerCase();
+    const clusterLabel = CLUSTER_LABELS[cluster];
     if (lower.includes("invalid public key input")) {
-      return "RPC rejected the transaction. Switch your wallet to Solana Mainnet Beta and ensure it holds mainnet SOL/cUSDC.";
+      return `RPC rejected the transaction. Switch your wallet to Solana ${clusterLabel} and ensure it holds SOL/cUSDC on that cluster.`;
     }
     if (lower.includes("blockhash not found")) {
-      return "Stale blockhash. Reconnect your wallet on Solana Mainnet Beta and try again.";
+      return `Stale blockhash. Reconnect your wallet on Solana ${clusterLabel} and try again.`;
     }
     return message;
   }

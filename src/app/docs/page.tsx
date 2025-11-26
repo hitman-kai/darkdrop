@@ -13,13 +13,13 @@ const sections = [
     content: (
       <>
         <p>
-          DarkDrop is a “dead drop” layer on Solana mainnet. When you create a drop, the app spins up a disposable
+          DarkDrop is a “dead drop” layer on Solana mainnet or devnet. When you create a drop, the app spins up a disposable
           keypair (“burner”), transfers the requested asset into it, and hands you the burner’s private key as a claim
           string. Anyone holding that string can reconstruct the keypair and sweep the funds, but there is no on-chain
           link between the sender and recipient beyond the initial deposit.
         </p>
         <ul className="list-disc space-y-2 pl-6 text-sm text-[rgba(224,224,224,0.75)]">
-          <li>SOL and cUSDC (Token-2022, mainnet) are supported.</li>
+          <li>SOL and cUSDC (Token-2022) are supported on both Mainnet Beta and Devnet.</li>
           <li>Password protection optionally encrypts the private key with AES (tweetnacl secretbox + PBKDF2).</li>
           <li>Claim strings use the format <code>darkdrop:v1:{`{cluster}`}:{`{asset}`}:{`{mode}`}:{`…`}</code>.</li>
         </ul>
@@ -33,8 +33,8 @@ const sections = [
     content: (
       <ol className="space-y-3 text-sm text-[rgba(224,224,224,0.8)]">
         <li>
-          Connect a wallet that is on <strong>Solana Mainnet Beta</strong> and funded with SOL (0.01 SOL buffer
-          recommended). cUSDC (Token-2022) drops also require rent for the recipient ATA.
+          Connect a wallet that is on <strong>the same cluster you select in-app</strong> (Mainnet Beta or Devnet) and fund
+          it with SOL (0.01 SOL buffer recommended). cUSDC (Token-2022) drops also require rent for the recipient ATA.
         </li>
         <li>
           Pick the asset + amount and optionally enter a password. When you confirm, DarkDrop generates a new burner
@@ -61,10 +61,10 @@ const sections = [
         </p>
         <ul className="list-disc space-y-2 pl-6 text-sm text-[rgba(224,224,224,0.75)]">
           <li>
-            <code>darkdrop:v1:mainnet:sol:raw:XyZ…</code> – raw SOL drop.
+            <code>darkdrop:v1:mainnet:sol:raw:XyZ…</code> – raw SOL drop on mainnet.
           </li>
           <li>
-            <code>darkdrop:v1:mainnet:usdc:aes:2f8a9c11:BASE64</code> – password-protected cUSDC (Token-2022) drop.
+            <code>darkdrop:v1:devnet:usdc:aes:2f8a9c11:BASE64</code> – password-protected cUSDC (Token-2022) drop on devnet.
           </li>
           <li>
             Older “legacy” claim strings that are just base58 private keys are still supported during import.
@@ -146,7 +146,7 @@ export default function DocsPage() {
             <Lock size={14} /> Client-side encryption
           </div>
           <div className="flex items-center gap-2 border border-[rgba(0,255,65,0.3)] px-3 py-1">
-            <Shield size={14} /> Mainnet-only
+            <Shield size={14} /> Mainnet + Devnet
           </div>
           <div className="flex items-center gap-2 border border-[rgba(0,255,65,0.3)] px-3 py-1">
             <Share size={14} /> Off-chain delivery
