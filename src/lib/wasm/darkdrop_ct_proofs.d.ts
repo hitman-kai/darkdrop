@@ -1,14 +1,14 @@
 /* tslint:disable */
 /* eslint-disable */
-/**
- * Generate zero-balance proof for account configuration
- */
-export function generate_configure_account_proof(request_json: string): any;
+export function init_panic_hook(): void;
 /**
  * Generate proofs for confidential transfer (Equality + Validity + Range)
  */
 export function generate_transfer_proof(request_json: string): any;
-export function init_panic_hook(): void;
+/**
+ * Generate zero-balance proof for account configuration
+ */
+export function generate_configure_account_proof(request_json: string): any;
 /**
  * Authenticated encryption nonce and ciphertext
  */
@@ -29,7 +29,7 @@ export class AeKey {
   /**
    * Generates a random authenticated encryption key.
    *
-   * This function is randomized. It internally samples a scalar element using `OsRng`.
+   * This function is randomized. It internally samples a 128-bit key using `OsRng`.
    */
   static newRand(): AeKey;
 }
@@ -329,30 +329,14 @@ export class GroupedElGamalCiphertext2Handles {
   free(): void;
   [Symbol.dispose](): void;
   static encryptU64(first_pubkey: ElGamalPubkey, second_pubkey: ElGamalPubkey, amount: bigint): GroupedElGamalCiphertext2Handles;
-  static encryptionWithU64(first_pubkey: ElGamalPubkey, second_pubkey: ElGamalPubkey, amount: bigint, opening: PedersenOpening): GroupedElGamalCiphertext2Handles;
+  static encryptWithU64(first_pubkey: ElGamalPubkey, second_pubkey: ElGamalPubkey, amount: bigint, opening: PedersenOpening): GroupedElGamalCiphertext2Handles;
 }
 export class GroupedElGamalCiphertext3Handles {
   private constructor();
   free(): void;
   [Symbol.dispose](): void;
   static encryptU64(first_pubkey: ElGamalPubkey, second_pubkey: ElGamalPubkey, third_pubkey: ElGamalPubkey, amount: bigint): GroupedElGamalCiphertext3Handles;
-  static encryptionWithU64(first_pubkey: ElGamalPubkey, second_pubkey: ElGamalPubkey, third_pubkey: ElGamalPubkey, amount: bigint, opening: PedersenOpening): GroupedElGamalCiphertext3Handles;
-}
-/**
- * wasm-bindgen version of the Instruction struct.
- * This duplication is required until https://github.com/rustwasm/wasm-bindgen/issues/3671
- * is fixed. This must not diverge from the regular non-wasm Instruction struct.
- */
-export class Instruction {
-  private constructor();
-  free(): void;
-  [Symbol.dispose](): void;
-}
-export class Instructions {
-  free(): void;
-  [Symbol.dispose](): void;
-  constructor();
-  push(instruction: Instruction): void;
+  static encryptWithU64(first_pubkey: ElGamalPubkey, second_pubkey: ElGamalPubkey, third_pubkey: ElGamalPubkey, amount: bigint, opening: PedersenOpening): GroupedElGamalCiphertext3Handles;
 }
 /**
  * Algorithm handle for the Pedersen commitment scheme.
@@ -388,7 +372,7 @@ export class PedersenOpening {
  * The proof consists of two main components: `percentage_max_proof` and
  * `percentage_equality_proof`. If the committed amount is greater than the maximum cap value,
  * then the `percentage_max_proof` is properly generated and `percentage_equality_proof` is
- * simulated. If the encrypted amount is smaller than the maximum cap bound, the
+ * simulated. If the committed amount is smaller than the maximum cap bound, the
  * `percentage_equality_proof` is properly generated and `percentage_max_proof` is simulated.
  */
 export class PercentageWithCapProof {
@@ -588,44 +572,6 @@ export class PodZeroCiphertextProof {
   [Symbol.dispose](): void;
 }
 /**
- * The address of a [Solana account][acc].
- *
- * Some account addresses are [ed25519] public keys, with corresponding secret
- * keys that are managed off-chain. Often, though, account addresses do not
- * have corresponding secret keys &mdash; as with [_program derived
- * addresses_][pdas] &mdash; or the secret key is not relevant to the operation
- * of a program, and may have even been disposed of. As running Solana programs
- * can not safely create or manage secret keys, the full [`Keypair`] is not
- * defined in `solana-program` but in `solana-sdk`.
- *
- * [acc]: https://solana.com/docs/core/accounts
- * [ed25519]: https://ed25519.cr.yp.to/
- * [pdas]: https://solana.com/docs/core/cpi#program-derived-addresses
- * [`Keypair`]: https://docs.rs/solana-sdk/latest/solana_sdk/signer/keypair/struct.Keypair.html
- */
-export class Pubkey {
-  free(): void;
-  [Symbol.dispose](): void;
-  /**
-   * Create a new Pubkey object
-   *
-   * * `value` - optional public key as a base58 encoded string, `Uint8Array`, `[number]`
-   */
-  constructor(value: any);
-  /**
-   * Checks if two `Pubkey`s are equal
-   */
-  equals(other: Pubkey): boolean;
-  /**
-   * Return the `Uint8Array` representation of the public key
-   */
-  toBytes(): Uint8Array;
-  /**
-   * Return the base58 string representation of the public key
-   */
-  toString(): string;
-}
-/**
  * Public-key proof.
  *
  * Contains all the elliptic curve and scalar components that make up the sigma protocol.
@@ -701,7 +647,7 @@ export class ZeroCiphertextProofContext {
   ciphertext: PodElGamalCiphertext;
 }
 /**
- * The instruction data that is needed for the `ProofInstruction::ZeroCiphertext` instruction.
+ * The instruction data that is needed for the `ProofInstruction::VerifyZeroCiphertext` instruction.
  *
  * It includes the cryptographic proof as well as the context data information needed to verify
  * the proof.
@@ -772,9 +718,9 @@ export interface InitOutput {
   readonly groupedciphertext3handlesvalidityproofdata_new: (a: number, b: number, c: number, d: number, e: bigint, f: number) => [number, number, number];
   readonly groupedciphertext3handlesvalidityproofdata_toBytes: (a: number) => [number, number];
   readonly groupedelgamalciphertext2handles_encryptU64: (a: number, b: number, c: bigint) => number;
-  readonly groupedelgamalciphertext2handles_encryptionWithU64: (a: number, b: number, c: bigint, d: number) => number;
+  readonly groupedelgamalciphertext2handles_encryptWithU64: (a: number, b: number, c: bigint, d: number) => number;
   readonly groupedelgamalciphertext3handles_encryptU64: (a: number, b: number, c: number, d: bigint) => number;
-  readonly groupedelgamalciphertext3handles_encryptionWithU64: (a: number, b: number, c: number, d: bigint, e: number) => number;
+  readonly groupedelgamalciphertext3handles_encryptWithU64: (a: number, b: number, c: number, d: bigint, e: number) => number;
   readonly pubkeyvalidityproofcontext_fromBytes: (a: number, b: number) => [number, number, number];
   readonly pubkeyvalidityproofcontext_toBytes: (a: number) => [number, number];
   readonly pubkeyvalidityproofdata_fromBytes: (a: number, b: number) => [number, number, number];
@@ -790,19 +736,7 @@ export interface InitOutput {
   readonly __wbg_get_groupedciphertext3handlesvalidityproofcontext_second_pubkey: (a: number) => number;
   readonly __wbg_get_groupedciphertext3handlesvalidityproofcontext_third_pubkey: (a: number) => number;
   readonly __wbg_get_pubkeyvalidityproofcontext_pubkey: (a: number) => number;
-  readonly __wbg_podbatchedgroupedciphertext2handlesvalidityproof_free: (a: number, b: number) => void;
-  readonly __wbg_podbatchedgroupedciphertext3handlesvalidityproof_free: (a: number, b: number) => void;
-  readonly __wbg_podciphertextciphertextequalityproof_free: (a: number, b: number) => void;
-  readonly __wbg_podciphertextcommitmentequalityproof_free: (a: number, b: number) => void;
-  readonly __wbg_podgroupedciphertext2handlesvalidityproof_free: (a: number, b: number) => void;
-  readonly __wbg_podgroupedciphertext3handlesvalidityproof_free: (a: number, b: number) => void;
-  readonly __wbg_podpedersencommitment_free: (a: number, b: number) => void;
-  readonly __wbg_podpercentagewithcapproof_free: (a: number, b: number) => void;
-  readonly __wbg_podpubkeyvalidityproof_free: (a: number, b: number) => void;
-  readonly __wbg_podzerociphertextproof_free: (a: number, b: number) => void;
-  readonly __wbg_pubkeyvalidityproof_free: (a: number, b: number) => void;
-  readonly __wbg_percentagewithcapproof_free: (a: number, b: number) => void;
-  readonly __wbg_batchedgroupedciphertext2handlesvalidityproof_free: (a: number, b: number) => void;
+  readonly __wbg_batchedgroupedciphertext3handlesvalidityproof_free: (a: number, b: number) => void;
   readonly __wbg_ciphertextciphertextequalityproofcontext_free: (a: number, b: number) => void;
   readonly __wbg_ciphertextciphertextequalityproofdata_free: (a: number, b: number) => void;
   readonly __wbg_ciphertextcommitmentequalityproof_free: (a: number, b: number) => void;
@@ -859,10 +793,20 @@ export interface InitOutput {
   readonly percentagewithcapproofdata_toBytes: (a: number) => [number, number];
   readonly __wbg_set_ciphertextcommitmentequalityproofcontext_pubkey: (a: number, b: number) => void;
   readonly __wbg_get_ciphertextcommitmentequalityproofcontext_pubkey: (a: number) => number;
-  readonly __wbg_groupedciphertext2handlesvalidityproof_free: (a: number, b: number) => void;
+  readonly __wbg_podbatchedgroupedciphertext2handlesvalidityproof_free: (a: number, b: number) => void;
+  readonly __wbg_podbatchedgroupedciphertext3handlesvalidityproof_free: (a: number, b: number) => void;
+  readonly __wbg_podciphertextciphertextequalityproof_free: (a: number, b: number) => void;
+  readonly __wbg_podciphertextcommitmentequalityproof_free: (a: number, b: number) => void;
+  readonly __wbg_podgroupedciphertext2handlesvalidityproof_free: (a: number, b: number) => void;
+  readonly __wbg_podgroupedciphertext3handlesvalidityproof_free: (a: number, b: number) => void;
+  readonly __wbg_podpedersencommitment_free: (a: number, b: number) => void;
+  readonly __wbg_podpercentagewithcapproof_free: (a: number, b: number) => void;
+  readonly __wbg_podpubkeyvalidityproof_free: (a: number, b: number) => void;
+  readonly __wbg_podzerociphertextproof_free: (a: number, b: number) => void;
+  readonly __wbg_pubkeyvalidityproof_free: (a: number, b: number) => void;
+  readonly __wbg_batchedgroupedciphertext2handlesvalidityproof_free: (a: number, b: number) => void;
   readonly __wbg_batchedgroupedciphertext2handlesvalidityproofcontext_free: (a: number, b: number) => void;
   readonly __wbg_batchedgroupedciphertext2handlesvalidityproofdata_free: (a: number, b: number) => void;
-  readonly __wbg_batchedgroupedciphertext3handlesvalidityproof_free: (a: number, b: number) => void;
   readonly __wbg_ciphertextciphertextequalityproof_free: (a: number, b: number) => void;
   readonly __wbg_get_batchedgroupedciphertext2handlesvalidityproofcontext_first_pubkey: (a: number) => number;
   readonly __wbg_get_batchedgroupedciphertext2handlesvalidityproofcontext_grouped_ciphertext_hi: (a: number) => number;
@@ -913,35 +857,10 @@ export interface InitOutput {
   readonly __wbg_get_groupedciphertext2handlesvalidityproofcontext_grouped_ciphertext: (a: number) => number;
   readonly __wbg_get_groupedciphertext2handlesvalidityproofcontext_second_pubkey: (a: number) => number;
   readonly __wbg_get_zerociphertextproofcontext_pubkey: (a: number) => number;
-  readonly __wbg_aeciphertext_free: (a: number, b: number) => void;
-  readonly __wbg_aekey_free: (a: number, b: number) => void;
-  readonly __wbg_decrypthandle_free: (a: number, b: number) => void;
-  readonly __wbg_elgamalciphertext_free: (a: number, b: number) => void;
-  readonly __wbg_elgamalkeypair_free: (a: number, b: number) => void;
-  readonly __wbg_elgamalpubkey_free: (a: number, b: number) => void;
-  readonly __wbg_get_elgamalciphertext_commitment: (a: number) => number;
-  readonly __wbg_get_elgamalciphertext_handle: (a: number) => number;
-  readonly __wbg_pedersen_free: (a: number, b: number) => void;
-  readonly __wbg_pedersencommitment_free: (a: number, b: number) => void;
-  readonly __wbg_pedersenopening_free: (a: number, b: number) => void;
-  readonly __wbg_podgroupedelgamalciphertext2handles_free: (a: number, b: number) => void;
-  readonly __wbg_podgroupedelgamalciphertext3handles_free: (a: number, b: number) => void;
-  readonly __wbg_set_elgamalciphertext_commitment: (a: number, b: number) => void;
-  readonly __wbg_set_elgamalciphertext_handle: (a: number, b: number) => void;
-  readonly aekey_decrypt: (a: number, b: number) => [number, bigint];
-  readonly aekey_encrypt: (a: number, b: bigint) => number;
-  readonly aekey_newRand: () => number;
-  readonly elgamalkeypair_newRand: () => number;
-  readonly elgamalkeypair_pubkeyOwned: (a: number) => number;
-  readonly elgamalpubkey_encryptU64: (a: number, b: bigint) => number;
-  readonly elgamalpubkey_encryptWithU64: (a: number, b: bigint, c: number) => number;
-  readonly pedersen_withU64: (a: bigint, b: number) => number;
-  readonly pedersenopening_newRand: () => number;
   readonly __wbg_groupedciphertext3handlesvalidityproof_free: (a: number, b: number) => void;
   readonly __wbg_podaeciphertext_free: (a: number, b: number) => void;
   readonly __wbg_podelgamalciphertext_free: (a: number, b: number) => void;
   readonly __wbg_podelgamalpubkey_free: (a: number, b: number) => void;
-  readonly __wbg_podu64_free: (a: number, b: number) => void;
   readonly podaeciphertext_constructor: (a: any) => [number, number, number];
   readonly podaeciphertext_decode: (a: number) => [number, number, number];
   readonly podaeciphertext_encode: (a: number) => number;
@@ -963,15 +882,33 @@ export interface InitOutput {
   readonly podelgamalpubkey_toString: (a: number) => [number, number];
   readonly podelgamalpubkey_zeroed: () => number;
   readonly podelgamalciphertext_zeroed: () => number;
-  readonly __wbg_instruction_free: (a: number, b: number) => void;
-  readonly __wbg_instructions_free: (a: number, b: number) => void;
-  readonly instructions_constructor: () => number;
-  readonly instructions_push: (a: number, b: number) => void;
-  readonly __wbg_pubkey_free: (a: number, b: number) => void;
-  readonly pubkey_constructor: (a: any) => [number, number, number];
-  readonly pubkey_equals: (a: number, b: number) => number;
-  readonly pubkey_toBytes: (a: number) => [number, number];
-  readonly pubkey_toString: (a: number) => [number, number];
+  readonly __wbg_aeciphertext_free: (a: number, b: number) => void;
+  readonly __wbg_aekey_free: (a: number, b: number) => void;
+  readonly __wbg_decrypthandle_free: (a: number, b: number) => void;
+  readonly __wbg_elgamalciphertext_free: (a: number, b: number) => void;
+  readonly __wbg_elgamalkeypair_free: (a: number, b: number) => void;
+  readonly __wbg_elgamalpubkey_free: (a: number, b: number) => void;
+  readonly __wbg_get_elgamalciphertext_commitment: (a: number) => number;
+  readonly __wbg_get_elgamalciphertext_handle: (a: number) => number;
+  readonly __wbg_groupedciphertext2handlesvalidityproof_free: (a: number, b: number) => void;
+  readonly __wbg_pedersen_free: (a: number, b: number) => void;
+  readonly __wbg_pedersencommitment_free: (a: number, b: number) => void;
+  readonly __wbg_pedersenopening_free: (a: number, b: number) => void;
+  readonly __wbg_podgroupedelgamalciphertext2handles_free: (a: number, b: number) => void;
+  readonly __wbg_podgroupedelgamalciphertext3handles_free: (a: number, b: number) => void;
+  readonly __wbg_set_elgamalciphertext_commitment: (a: number, b: number) => void;
+  readonly __wbg_set_elgamalciphertext_handle: (a: number, b: number) => void;
+  readonly aekey_decrypt: (a: number, b: number) => [number, bigint];
+  readonly aekey_encrypt: (a: number, b: bigint) => number;
+  readonly aekey_newRand: () => number;
+  readonly elgamalkeypair_newRand: () => number;
+  readonly elgamalkeypair_pubkeyOwned: (a: number) => number;
+  readonly elgamalpubkey_encryptU64: (a: number, b: bigint) => number;
+  readonly elgamalpubkey_encryptWithU64: (a: number, b: bigint, c: number) => number;
+  readonly pedersen_withU64: (a: bigint, b: number) => number;
+  readonly pedersenopening_newRand: () => number;
+  readonly __wbg_percentagewithcapproof_free: (a: number, b: number) => void;
+  readonly __wbg_podu64_free: (a: number, b: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_exn_store: (a: number) => void;

@@ -50,12 +50,12 @@ export const ASSETS: Record<AssetSymbol, AssetMeta> = {
     kind: "native",
   },
   usdc: {
-    symbol: "USDC",
-    label: "USD Coin",
+    symbol: "cUSDC",
+    label: "Confidential USDC",
     decimals: 6,
     kind: "spl",
-    mint: USDC_MINTS,
-    program: "token",
+    mint: CUSDC_MINTS,
+    program: "token-2022",
   },
 };
 

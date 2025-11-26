@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeftRight, ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
-import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
 import { createAssociatedTokenAccountInstruction, createTransferInstruction, getAssociatedTokenAddress } from "@solana/spl-token";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 
@@ -12,8 +12,11 @@ import { ConfidentialPreviewCard } from "@/components/ConfidentialPreviewCard";
 import { QRDisplay } from "@/components/QRDisplay";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { amountToUnits } from "@/lib/amount";
-import { generateDrop, type DropPayload } from "@/lib/drop";
-import { generateConfidentialProof } from "@/lib/confidential/proofClient";
+import { generateDrop, type DropPayload, withElGamalKeypair } from "@/lib/drop";
+import { deriveAESKey } from "@/lib/confidential/aes";
+import { base64FromBytes, bytesFromBase64 } from "@/lib/base64";
+import { buildConfidentialAccountInstructions } from "@/lib/confidential/instructions";
+import { generateConfigureAccountProof, generateConfidentialProof } from "@/lib/confidential/proofClient";
 import { getConfidentialSupport, planConfidentialTransfer } from "@/lib/confidential/transfers";
 import {
   ASSETS,
@@ -67,6 +70,9 @@ export default function CreateDropPage() {
     rangeProof: string;
     newSourceBalance: string;
     senderElGamalKeypair: string;
+    newSourceDecryptableBalance?: string;
+    transferAuditorCiphertextLo?: string;
+    transferAuditorCiphertextHi?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -125,7 +131,7 @@ export default function CreateDropPage() {
           owner: publicKey?.toBase58(),
           destination: publicKey?.toBase58(),
           cluster,
-          sender_balance: previewBalance.toString(),
+          senderBalance: previewBalance.toString(),
         });
         if (!cancelled) {
           setConfidentialNotes(proof.notes);
@@ -141,6 +147,15 @@ export default function CreateDropPage() {
                 rangeProof: String(meta.range_proof),
                 newSourceBalance: String(meta.new_source_balance),
                 senderElGamalKeypair: String(meta.sender_elgamal_keypair),
+                newSourceDecryptableBalance: meta.new_source_decryptable_balance
+                  ? String(meta.new_source_decryptable_balance)
+                  : undefined,
+                transferAuditorCiphertextLo: meta.transfer_auditor_ciphertext_lo
+                  ? String(meta.transfer_auditor_ciphertext_lo)
+                  : undefined,
+                transferAuditorCiphertextHi: meta.transfer_auditor_ciphertext_hi
+                  ? String(meta.transfer_auditor_ciphertext_hi)
+                  : undefined,
               });
             }
           }
@@ -180,9 +195,17 @@ export default function CreateDropPage() {
         throw new Error("Enter a valid amount.");
       }
 
-      const drop = generateDrop({ asset, cluster, password: password.trim() ? password : undefined });
+      const dropPassword = password.trim() ? password.trim() : undefined;
+      const burnerKeypair = Keypair.generate();
+      let drop = generateDrop({
+        asset,
+        cluster,
+        password: dropPassword,
+        keypair: burnerKeypair,
+      });
       const dropPubkey = new PublicKey(drop.address);
       let signature = "";
+      const configureNotes: string[] = [];
 
       if (asset === "sol") {
         const lamports = Number(rawAmount);
@@ -206,9 +229,51 @@ export default function CreateDropPage() {
         if (!fromInfo) throw new Error(`No ${symbol} balance on this cluster.`);
         const toAta = await getAssociatedTokenAddress(mint, dropPubkey, true, tokenProgramId);
         const toInfo = await connection.getAccountInfo(toAta);
-        const instructions = [];
+        const instructions: TransactionInstruction[] = [];
         if (!toInfo) {
           instructions.push(createAssociatedTokenAccountInstruction(publicKey, toAta, dropPubkey, mint, tokenProgramId));
+        }
+
+        const configureInstructions: TransactionInstruction[] = [];
+        if (privateMode && asset === "usdc") {
+          const aesKey = deriveAESKey(burnerKeypair);
+          const aesKeyBase64 = base64FromBytes(aesKey);
+          const configureProof = await generateConfigureAccountProof({
+            kind: "token2022-confidential-configure",
+            aesKey: aesKeyBase64,
+          });
+          configureNotes.push(...(configureProof.notes ?? []));
+
+          const metadata = configureProof.proof?.metadata ?? {};
+          const zeroBalanceProof =
+            typeof metadata.zero_balance_proof === "string" ? metadata.zero_balance_proof : undefined;
+          const decryptableZeroBalance =
+            typeof metadata.decryptable_zero_balance === "string" ? metadata.decryptable_zero_balance : undefined;
+          const elgamalKeypair =
+            typeof metadata.elgamal_keypair === "string" ? metadata.elgamal_keypair : undefined;
+
+          if (!zeroBalanceProof || !decryptableZeroBalance || !elgamalKeypair) {
+            throw new Error("Configure proof missing required fields.");
+          }
+
+          drop = withElGamalKeypair(drop, elgamalKeypair, dropPassword);
+
+          const zeroProofBytes = bytesFromBase64(zeroBalanceProof);
+          const decryptableZeroBytes = bytesFromBase64(decryptableZeroBalance);
+          const configurePlan = await buildConfidentialAccountInstructions({
+            connection,
+            mint,
+            owner: dropPubkey,
+            accountAddress: toAta,
+            zeroBalanceProof: zeroProofBytes,
+            decryptableZeroBalance: decryptableZeroBytes,
+          });
+          configureInstructions.push(...configurePlan.instructions);
+          configureNotes.push(...configurePlan.notes);
+        }
+
+        if (configureInstructions.length) {
+          instructions.push(...configureInstructions);
         }
 
         if (privateMode && asset === "usdc" && proofData) {
@@ -228,6 +293,10 @@ export default function CreateDropPage() {
             );
           }
           instructions.push(...ctPlan.instructions);
+          const aggregateNotes = [...configureNotes, ...ctPlan.notes];
+          if (aggregateNotes.length) {
+            setConfidentialNotes(aggregateNotes);
+          }
         } else if (privateMode && asset === "usdc" && !proofData) {
           throw new Error(
             "Private Mode enabled but proofs not ready. Wait for proof generation to complete."

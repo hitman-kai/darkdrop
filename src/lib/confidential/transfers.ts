@@ -2,10 +2,12 @@
 
 import type { Connection, TransactionInstruction } from "@solana/web3.js";
 import { PublicKey } from "@solana/web3.js";
+import { Buffer } from "buffer";
 import {
   ExtensionType,
   TOKEN_2022_PROGRAM_ID,
   getAssociatedTokenAddress,
+  getExtensionData,
   getExtensionTypes,
   unpackAccount,
   unpackMint,
@@ -30,6 +32,11 @@ export type ConfidentialTransferPlan = {
   instructions: TransactionInstruction[];
   requiresProofWorker: boolean;
   notes: string[];
+  context?: {
+    mint: MintInspection;
+    source: AccountInspection;
+    destination: AccountInspection;
+  };
 };
 
 type BuildContext = {
@@ -44,10 +51,34 @@ type BuildContext = {
     rangeProof: string;
     newSourceBalance: string;
     senderElGamalKeypair: string;
+    newSourceDecryptableBalance?: string;
+    transferAuditorCiphertextLo?: string;
+    transferAuditorCiphertextHi?: string;
   };
 };
 
 const DEFAULT_CONFIDENTIAL_CLUSTER: ClusterType = DEFAULT_CLUSTER;
+
+type ConfidentialMintDetails = {
+  authority?: string;
+  auditorElgamalPubkey?: string;
+  autoApproveNewAccounts: boolean;
+};
+
+type ConfidentialAccountDetails = {
+  approved: boolean;
+  elgamalPubkey?: string;
+  pendingBalanceLo?: string;
+  pendingBalanceHi?: string;
+  availableBalance?: string;
+  decryptableAvailableBalance?: string;
+  allowConfidentialCredits: boolean;
+  allowNonConfidentialCredits: boolean;
+  pendingBalanceCreditCounter: bigint;
+  maximumPendingBalanceCreditCounter: bigint;
+  expectedPendingBalanceCreditCounter: bigint;
+  actualPendingBalanceCreditCounter: bigint;
+};
 
 type MintInspection =
   | {
@@ -56,6 +87,7 @@ type MintInspection =
       hasConfidential: boolean;
       extensions: ExtensionType[];
       decimals: number;
+      confidentialDetails?: ConfidentialMintDetails;
     }
   | {
       address: PublicKey;
@@ -63,6 +95,7 @@ type MintInspection =
       hasConfidential: false;
       extensions: ExtensionType[];
       decimals: number | null;
+      confidentialDetails?: undefined;
     };
 
 type AccountInspection =
@@ -71,13 +104,84 @@ type AccountInspection =
       exists: true;
       hasConfidential: boolean;
       extensions: ExtensionType[];
+      confidentialDetails?: ConfidentialAccountDetails;
     }
   | {
       address: PublicKey;
       exists: false;
       hasConfidential: false;
       extensions: ExtensionType[];
+      confidentialDetails?: undefined;
     };
+
+const bytesToBase64 = (value: Uint8Array) => Buffer.from(value).toString("base64");
+
+function isZeroBytes(value: Uint8Array) {
+  for (let i = 0; i < value.length; i += 1) {
+    if (value[i] !== 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function decodeConfidentialMintData(data: Buffer): ConfidentialMintDetails {
+  if (data.length < 65) {
+    throw new Error("Confidential mint extension is truncated");
+  }
+  const authorityBytes = data.subarray(0, 32);
+  const autoApprove = data[32] === 1;
+  const auditorBytes = data.subarray(33, 65);
+
+  return {
+    authority: isZeroBytes(authorityBytes) ? undefined : bytesToBase64(authorityBytes),
+    autoApproveNewAccounts: autoApprove,
+    auditorElgamalPubkey: isZeroBytes(auditorBytes) ? undefined : bytesToBase64(auditorBytes),
+  };
+}
+
+function decodeConfidentialAccountData(data: Buffer): ConfidentialAccountDetails {
+  if (data.length < 295) {
+    throw new Error("Confidential account extension is truncated");
+  }
+
+  let offset = 0;
+  const approved = data[offset++] === 1;
+  const elgamal = data.subarray(offset, offset + 32);
+  offset += 32;
+  const pendingLo = data.subarray(offset, offset + 64);
+  offset += 64;
+  const pendingHi = data.subarray(offset, offset + 64);
+  offset += 64;
+  const available = data.subarray(offset, offset + 64);
+  offset += 64;
+  const decryptable = data.subarray(offset, offset + 36);
+  offset += 36;
+  const allowConfidentialCredits = data[offset++] === 1;
+  const allowNonConfidentialCredits = data[offset++] === 1;
+  const pendingBalanceCreditCounter = data.readBigUInt64LE(offset);
+  offset += 8;
+  const maximumPendingBalanceCreditCounter = data.readBigUInt64LE(offset);
+  offset += 8;
+  const expectedPendingBalanceCreditCounter = data.readBigUInt64LE(offset);
+  offset += 8;
+  const actualPendingBalanceCreditCounter = data.readBigUInt64LE(offset);
+
+  return {
+    approved,
+    elgamalPubkey: isZeroBytes(elgamal) ? undefined : bytesToBase64(elgamal),
+    pendingBalanceLo: isZeroBytes(pendingLo) ? undefined : bytesToBase64(pendingLo),
+    pendingBalanceHi: isZeroBytes(pendingHi) ? undefined : bytesToBase64(pendingHi),
+    availableBalance: isZeroBytes(available) ? undefined : bytesToBase64(available),
+    decryptableAvailableBalance: isZeroBytes(decryptable) ? undefined : bytesToBase64(decryptable),
+    allowConfidentialCredits,
+    allowNonConfidentialCredits,
+    pendingBalanceCreditCounter,
+    maximumPendingBalanceCreditCounter,
+    expectedPendingBalanceCreditCounter,
+    actualPendingBalanceCreditCounter,
+  };
+}
 
 const devWarn = (...args: unknown[]) => {
   if (process.env.NODE_ENV !== "production") {
@@ -100,12 +204,24 @@ async function inspectMint(connection: Connection, mintAddress: string): Promise
     }
     const decoded = unpackMint(mint, info, TOKEN_2022_PROGRAM_ID);
     const extensions = decoded.tlvData.length ? getExtensionTypes(decoded.tlvData) : [];
+    let confidentialDetails: ConfidentialMintDetails | undefined;
+    if (extensions.includes(ExtensionType.ConfidentialTransferMint)) {
+      const extensionData = getExtensionData(ExtensionType.ConfidentialTransferMint, decoded.tlvData);
+      if (extensionData) {
+        try {
+          confidentialDetails = decodeConfidentialMintData(extensionData);
+        } catch (err) {
+          devWarn("Failed to decode CT mint extension", err);
+        }
+      }
+    }
     return {
       address: mint,
       found: true,
       hasConfidential: extensions.includes(ExtensionType.ConfidentialTransferMint),
       extensions,
       decimals: decoded.decimals,
+      confidentialDetails,
     };
   } catch (error) {
     devWarn("Failed to inspect mint", error);
@@ -128,11 +244,23 @@ async function inspectTokenAccount(connection: Connection, mint: PublicKey, owne
     }
     const decoded = unpackAccount(ata, info, TOKEN_2022_PROGRAM_ID);
     const extensions = decoded.tlvData.length ? getExtensionTypes(decoded.tlvData) : [];
+    let confidentialDetails: ConfidentialAccountDetails | undefined;
+    if (extensions.includes(ExtensionType.ConfidentialTransferAccount)) {
+      const extensionData = getExtensionData(ExtensionType.ConfidentialTransferAccount, decoded.tlvData);
+      if (extensionData) {
+        try {
+          confidentialDetails = decodeConfidentialAccountData(extensionData);
+        } catch (err) {
+          devWarn("Failed to decode CT account extension", err);
+        }
+      }
+    }
     return {
       address: ata,
       exists: true,
       hasConfidential: extensions.includes(ExtensionType.ConfidentialTransferAccount),
       extensions,
+      confidentialDetails,
     };
   } catch (error) {
     devWarn("Failed to inspect token account", error);
@@ -297,5 +425,10 @@ export async function planConfidentialTransfer({
     instructions: ctTransfer.instructions,
     requiresProofWorker: true,
     notes,
+    context: {
+      mint: mintInspection,
+      source: sourceInspection,
+      destination: destinationInspection,
+    },
   };
 }

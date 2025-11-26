@@ -1,7 +1,6 @@
 "use client";
 
 import { PublicKey, TransactionInstruction, SystemProgram, SYSVAR_INSTRUCTIONS_PUBKEY } from "@solana/web3.js";
-import { serialize } from "borsh";
 
 /**
  * Token-2022 Program ID
@@ -65,17 +64,16 @@ export function buildConfigureAccountInstruction(
   tokenAccount: PublicKey,
   mint: PublicKey,
   owner: PublicKey,
-  zeroBalanceProof: Uint8Array,
-  elGamalPubkey: Uint8Array
+  decryptableZeroBalance: Uint8Array,
+  maxPendingBalanceCreditCounter: bigint = BigInt(64)
 ): TransactionInstruction {
-  // Instruction data: [discriminator(1), subtype(1), decryptableZeroBalance(64), maxPendingCounter(8), proofOffset(1)]
-  const data = Buffer.concat([
-    Buffer.from([CT_INSTRUCTION_TYPES.ConfigureAccount]),
-    Buffer.from([CT_INSTRUCTION_TYPES.ConfigureAccountSubtype]),
-    Buffer.from(elGamalPubkey), // decryptableZeroBalance (should be encrypted zero)
-    Buffer.alloc(8, 0), // maxPendingCounter (default to 0 for now)
-    Buffer.from([0]), // proofInstructionOffset (0 = use context state)
-  ]);
+  const data = new Uint8Array(2 + 36 + 8);
+  data[0] = CT_INSTRUCTION_TYPES.ConfigureAccount;
+  data[1] = CT_INSTRUCTION_TYPES.ConfigureAccountSubtype;
+  data.set(decryptableZeroBalance.slice(0, 36), 2);
+
+  const countersView = new DataView(data.buffer, 2 + 36, 8);
+  countersView.setBigUint64(0, maxPendingBalanceCreditCounter, true);
 
   return new TransactionInstruction({
     keys: [
@@ -88,6 +86,10 @@ export function buildConfigureAccountInstruction(
     programId: TOKEN_2022_PROGRAM_ID,
     data,
   });
+}
+
+export function buildZeroCiphertextProofInstruction(proofData: Uint8Array): TransactionInstruction {
+  return createProofInstruction(PROOF_INSTRUCTION_TYPES.ZeroCiphertext, proofData);
 }
 
 /**

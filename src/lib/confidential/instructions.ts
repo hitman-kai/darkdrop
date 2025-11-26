@@ -3,11 +3,10 @@
 import type { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import {
   buildConfigureAccountInstruction,
-  buildApproveAccountInstruction,
   buildEnableCreditsInstruction,
   buildCTTransferWithProofs,
+  buildZeroCiphertextProofInstruction,
 } from "./ct-instructions";
-import { SystemProgram, SYSVAR_INSTRUCTIONS_PUBKEY } from "@solana/web3.js";
 
 /**
  * Build the configure + approve + enable instruction sequence for a Token-2022
@@ -23,39 +22,29 @@ export async function buildConfidentialAccountInstructions(params: {
   mint: PublicKey;
   owner: PublicKey;
   accountAddress: PublicKey;
-  zeroBalanceProof?: string;
-  elGamalPubkey?: string;
+  zeroBalanceProof?: string | Uint8Array;
+  decryptableZeroBalance?: string | Uint8Array;
 }): Promise<{ instructions: TransactionInstruction[]; notes: string[] }> {
   const notes: string[] = [];
   const instructions: TransactionInstruction[] = [];
 
-  if (!params.zeroBalanceProof || !params.elGamalPubkey) {
-    notes.push("Missing zero-balance proof - generate via WASM first");
-    notes.push("Call generate_configure_account_proof() to get proof data");
-    return { instructions: [], notes };
-  }
-
   try {
-    // Import instruction builders
-    const { buildConfigureAccountInstruction, buildEnableCreditsInstruction } = await import("./ct-instructions");
+    const zeroProofBytes = normalizeBytes(params.zeroBalanceProof);
+    const decryptableZeroBytes = normalizeBytes(params.decryptableZeroBalance);
 
-    // Decode base64 proof data
-    const zeroProofBytes = Uint8Array.from(atob(params.zeroBalanceProof), (c) => c.charCodeAt(0));
-    const elGamalBytes = Uint8Array.from(atob(params.elGamalPubkey), (c) => c.charCodeAt(0));
+    if (!zeroProofBytes || !decryptableZeroBytes) {
+      notes.push("Missing zero-balance proof - generate via WASM first");
+      notes.push("Call generate_configure_account_proof() to get proof data");
+      return { instructions: [], notes };
+    }
 
-    // 1. Configure account with zero-balance proof
+    // 1. Zero-ciphertext proof (must precede configure instruction)
+    instructions.push(buildZeroCiphertextProofInstruction(zeroProofBytes));
+
+    // 2. Configure account with zero-balance proof reference
     instructions.push(
-      buildConfigureAccountInstruction(
-        params.accountAddress,
-        params.mint,
-        params.owner,
-        zeroProofBytes,
-        elGamalBytes
-      )
+      buildConfigureAccountInstruction(params.accountAddress, params.mint, params.owner, decryptableZeroBytes)
     );
-
-    // 2. Skip approve - mint has auto-approve enabled
-    notes.push("Skipping ApproveConfidentialTransferAccount (mint has auto-approve)");
 
     // 3. Enable confidential credits
     instructions.push(buildEnableCreditsInstruction(params.accountAddress, params.owner));
@@ -93,6 +82,9 @@ export async function buildConfidentialTransferInstruction(params: {
     rangeProof: string;
     newSourceBalance: string;
     senderElGamalKeypair: string;
+    newSourceDecryptableBalance?: string;
+    transferAuditorCiphertextLo?: string;
+    transferAuditorCiphertextHi?: string;
   };
 }): Promise<{ instructions: TransactionInstruction[]; notes: string[] }> {
   const notes: string[] = [];
@@ -165,6 +157,14 @@ export async function buildConfidentialTransferInstruction(params: {
  */
 function decodeProof(base64Proof: string): Uint8Array {
   return Uint8Array.from(atob(base64Proof), (c) => c.charCodeAt(0));
+}
+
+function normalizeBytes(value?: string | Uint8Array): Uint8Array | null {
+  if (!value) return null;
+  if (value instanceof Uint8Array) {
+    return value;
+  }
+  return Uint8Array.from(atob(value), (c) => c.charCodeAt(0));
 }
 
 /**

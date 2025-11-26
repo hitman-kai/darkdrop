@@ -35,7 +35,7 @@ const base64ToBuffer = (value: string): Uint8Array => {
 const deriveKey = (password: string, salt: Uint8Array): Uint8Array =>
   pbkdf2(sha256, encoder.encode(password), salt, { c: ITERATIONS, dkLen: KEY_LENGTH });
 
-export function encryptPrivateKey(secretKey: Uint8Array, password: string): string {
+export function encryptPrivateKey(payload: Uint8Array, password: string): string {
   if (!password) {
     throw new Error("Password required");
   }
@@ -43,14 +43,14 @@ export function encryptPrivateKey(secretKey: Uint8Array, password: string): stri
   const salt = nacl.randomBytes(SALT_LENGTH);
   const key = deriveKey(password, salt);
   const nonce = nacl.randomBytes(NONCE_LENGTH);
-  const sealed = nacl.secretbox(secretKey, nonce, key);
+  const sealed = nacl.secretbox(payload, nonce, key);
 
-  const payload = new Uint8Array(SALT_LENGTH + NONCE_LENGTH + sealed.length);
-  payload.set(salt, 0);
-  payload.set(nonce, SALT_LENGTH);
-  payload.set(sealed, SALT_LENGTH + NONCE_LENGTH);
+  const sealedPayload = new Uint8Array(SALT_LENGTH + NONCE_LENGTH + sealed.length);
+  sealedPayload.set(salt, 0);
+  sealedPayload.set(nonce, SALT_LENGTH);
+  sealedPayload.set(sealed, SALT_LENGTH + NONCE_LENGTH);
 
-  return bufferToBase64(payload);
+  return bufferToBase64(sealedPayload);
 }
 
 export function decryptPrivateKey(encrypted: string, password: string): Uint8Array | null {
