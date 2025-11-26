@@ -20,15 +20,20 @@ type ExecResult = {
 
 const PROJECT_ROOT = process.cwd();
 const HELPER_MANIFEST = path.join(PROJECT_ROOT, "darkdrop-ct-service", "Cargo.toml");
-const DEFAULT_HELPER_BIN = process.env.DARKDROP_CT_HELPER_BIN ?? "";
-const KEYPAIR_PATH = process.env.DARKDROP_CT_KEYPAIR;
+function resolveHelperEnv() {
+  return {
+    helperBin: process.env.DARKDROP_CT_HELPER_BIN ?? "",
+    keypairPath: process.env.DARKDROP_CT_KEYPAIR ?? "",
+  };
+}
 
 function buildCliArgs(mode: Mode, inputPath: string, rpcUrl?: string) {
-  if (!KEYPAIR_PATH) {
+  const { helperBin, keypairPath } = resolveHelperEnv();
+  if (!keypairPath) {
     throw new Error("Missing DARKDROP_CT_KEYPAIR env var. Set it to the fee payer keypair path.");
   }
 
-  const baseArgs = ["--json", "--keypair", KEYPAIR_PATH];
+  const baseArgs = ["--json", "--keypair", keypairPath];
   if (rpcUrl) {
     baseArgs.push("--rpc-url", rpcUrl);
   }
@@ -44,9 +49,9 @@ function buildCliArgs(mode: Mode, inputPath: string, rpcUrl?: string) {
       throw new Error(`Unsupported mode ${mode}`);
   }
 
-  if (DEFAULT_HELPER_BIN) {
+  if (helperBin) {
     return {
-      command: DEFAULT_HELPER_BIN,
+      command: helperBin,
       args: baseArgs,
     };
   }
