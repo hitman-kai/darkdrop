@@ -61,6 +61,8 @@ Environment variables (optional):
 - NEXT_PUBLIC_CUSDC_MAINNET_MINT   – Token-2022 cUSDC mint on mainnet (required; falls back to NEXT_PUBLIC_USDC_MAINNET_MINT if set)
 - NEXT_PUBLIC_CUSDC_DEVNET_MINT    – Token-2022 cUSDC mint on devnet (required for devnet drops)
 - NEXT_PUBLIC_DEFAULT_CLUSTER      – `mainnet` (default) or `devnet`
+- DARKDROP_CT_KEYPAIR              – Absolute path to the fee payer keypair used by the proof-context helper API
+- DARKDROP_CT_HELPER_BIN          – (Optional) Path to a prebuilt `darkdrop-ct-service` binary; if unset the API runs `cargo` on demand
 
 The repo ships with a default devnet CT mint (`AvV96PCeHS32crtNXqf2Dgb4BanNRCL6hhHyc6vAh6TR`) that is already funded for the test wallet (`1KTJPpkyZsiTUbABYZEUpAZA2dUEqt4shXgoioHcTZm`). Override via env vars if you deploy your own mint.
 
