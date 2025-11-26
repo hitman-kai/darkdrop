@@ -393,7 +393,7 @@ export default function CreateDropPage() {
             console.warn("[CreateDrop] Failed to measure transaction size", sizeErr);
           }
           try {
-            const simulation = await connection.simulateTransaction(tx, [publicKey]);
+            const simulation = await connection.simulateTransaction(tx, [burnerKeypair]);
             console.log("[CreateDrop] Simulation logs", simulation.value.logs ?? []);
             if (simulation.value.err) {
               console.warn("[CreateDrop] Simulation error", simulation.value.err);
