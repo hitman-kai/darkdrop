@@ -210,7 +210,7 @@ export default function ClaimDropPage() {
         updateDropStatus("compressed", "claimed");
         addClaimedDrop({
           address: burner.keypair.publicKey.toBase58(),
-          amount: Number(burner.balance) / Math.pow(10, getAssetDecimals(burner.asset)),
+          amount: (Number(burner.balance) / Math.pow(10, getAssetDecimals(burner.asset))).toString(),
           asset: burner.asset,
           cluster: burner.cluster,
           signature,
