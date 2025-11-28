@@ -19,11 +19,13 @@ export const RPC_ENDPOINTS: Record<ClusterType, string> = {
   mainnet: MAINNET_RPC || clusterApiUrl("mainnet-beta"),
 };
 
+// Use standard USDC mint by default (EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G)
+// Can override with NEXT_PUBLIC_USDC_MAINNET_MINT env var
 const CUSDC_MINTS: Record<ClusterType, string> = {
   mainnet:
-    process.env.NEXT_PUBLIC_CUSDC_MAINNET_MINT ??
     process.env.NEXT_PUBLIC_USDC_MAINNET_MINT ??
-    "",
+    process.env.NEXT_PUBLIC_CUSDC_MAINNET_MINT ??
+    "EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G", // Standard USDC mint
 };
 
 type AssetMeta =
