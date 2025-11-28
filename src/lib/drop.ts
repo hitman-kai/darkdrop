@@ -199,7 +199,48 @@ export async function generateShieldedDrop(
       const stateTreeInfos = await rpc.getStateTreeInfos();
       const outputStateTreeInfo = selectStateTreeInfo(stateTreeInfos);
       
-      const tokenPoolInfos = await getTokenPoolInfos(rpc, mint);
+      // Get token pool infos - this will throw if pool doesn't exist
+      let tokenPoolInfos;
+      try {
+        tokenPoolInfos = await getTokenPoolInfos(rpc, mint);
+      } catch (poolError) {
+        // Token pool doesn't exist - check if user has standard USDC
+        const standardUSDC = new PublicKey("EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G");
+        if (!mint.equals(standardUSDC)) {
+          // Try with standard USDC mint
+          try {
+            tokenPoolInfos = await getTokenPoolInfos(rpc, standardUSDC);
+            // Found pool for standard USDC - update mint
+            const standardATA = getAssociatedTokenAddressSync(
+              standardUSDC,
+              payerPubkey,
+              false,
+              TOKEN_PROGRAM_ID
+            );
+            const standardBalance = await connection.getTokenAccountBalance(standardATA).catch(() => null);
+            if (standardBalance && standardBalance.value.uiAmount && standardBalance.value.uiAmount > 0) {
+              // User has standard USDC and pool exists - use that instead
+              throw new Error(
+                `Compressed token pool not found for mint ${mintAddress}. ` +
+                `You have standard USDC (EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G) which has a pool. ` +
+                `Please set NEXT_PUBLIC_USDC_MAINNET_MINT=EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G to use standard USDC.`
+              );
+            }
+          } catch (standardError) {
+            // Standard USDC also doesn't have a pool
+          }
+        }
+        
+        // No pool found - provide helpful error
+        throw new Error(
+          `Compressed token pool not found for mint ${mintAddress}. ` +
+          `A token pool must be created before compressing tokens. ` +
+          `This is a one-time setup operation. ` +
+          `For now, compressed USDC drops require a pre-existing token pool. ` +
+          `SOL compression works without pools.`
+        );
+      }
+      
       const tokenPoolInfo = selectTokenPoolInfo(tokenPoolInfos);
 
       compressIx = await CompressedTokenProgram.compress({
