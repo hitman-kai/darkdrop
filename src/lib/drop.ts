@@ -130,14 +130,18 @@ export async function generateShieldedDrop(
       );
 
       // Check if payer has USDC balance
-      const ataInfo = await connection.getAccountInfo(payerATA);
-      if (!ataInfo) {
-        throw new Error(`No USDC balance found. Please ensure you have USDC in your wallet. ATA: ${payerATA.toBase58()}`);
+      const tokenAccountInfo = await connection.getTokenAccountBalance(payerATA).catch(() => null);
+      
+      if (!tokenAccountInfo) {
+        // ATA doesn't exist or couldn't be fetched - user likely doesn't have USDC
+        throw new Error(
+          `No USDC token account found. Please ensure you have USDC in your wallet. ` +
+          `If you have USDC, try receiving a small amount first to create the token account. ` +
+          `ATA: ${payerATA.toBase58()}`
+        );
       }
       
-      // Check token account balance
-      const tokenAccountInfo = await connection.getTokenAccountBalance(payerATA).catch(() => null);
-      if (!tokenAccountInfo || tokenAccountInfo.value.uiAmount === null || tokenAccountInfo.value.uiAmount === 0) {
+      if (tokenAccountInfo.value.uiAmount === null || tokenAccountInfo.value.uiAmount === 0) {
         throw new Error(`Insufficient USDC balance. Please ensure you have enough USDC in your wallet.`);
       }
       
