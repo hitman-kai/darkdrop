@@ -57,6 +57,8 @@ export default function CreateDropPage() {
   const [asset, setAsset] = useState<AssetSymbol>(preferredAsset ?? DEFAULT_ASSET);
   const [amount, setAmount] = useState("0.1");
   const [password, setPassword] = useState("");
+  const [ultraPrivateMode, setUltraPrivateMode] = useState(false);
+  const [shielding, setShielding] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DropResult | null>(null);
@@ -75,8 +77,11 @@ export default function CreateDropPage() {
 
   const decimals = getAssetDecimals(asset);
   const symbol = getAssetSymbol(asset);
-  const confidentialSupport = getConfidentialSupport(asset);
+  const confidentialSupport = useMemo(() => getConfidentialSupport(asset), [asset]);
+  const confidentialSupported = confidentialSupport.supported;
+  const confidentialSupportReason = confidentialSupport.reason;
   const mintAddress = useMemo(() => getAssetMint(asset, cluster), [asset, cluster]);
+  const useZkElgamal = process.env.NEXT_PUBLIC_USE_ZK_ELGAMAL === "true";
 
   const handleAssetChange = (next: AssetSymbol) => {
     setAsset(next);
@@ -85,22 +90,38 @@ export default function CreateDropPage() {
 
   useEffect(() => {
     let cancelled = false;
+    
+    // Skip Token-2022 proof generation if using Light Protocol
+    if (ultraPrivateMode && !useZkElgamal) {
+      setConfidentialNotes(["Using Light Protocol shielded drops (zk-compression)"]);
+      setPrivacyPending(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    
     if (!privateMode) {
       setConfidentialNotes(
-        confidentialSupport.supported ? [] : confidentialSupport.reason ? [confidentialSupport.reason] : []
+        confidentialSupported ? [] : confidentialSupportReason ? [confidentialSupportReason] : []
       );
       setPrivacyPending(false);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
-    if (!confidentialSupport.supported) {
-      setConfidentialNotes(confidentialSupport.reason ? [confidentialSupport.reason] : []);
+    if (!confidentialSupported) {
+      setConfidentialNotes(confidentialSupportReason ? [confidentialSupportReason] : []);
       setPrivacyPending(false);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
     if (!mintAddress) {
       setConfidentialNotes(["Missing cUSDC mint configuration."]);
       setPrivacyPending(false);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
     const run = async () => {
       setPrivacyPending(true);
@@ -158,7 +179,7 @@ export default function CreateDropPage() {
     return () => {
       cancelled = true;
     };
-  }, [asset, amount, decimals, privateMode, mintAddress, publicKey, cluster]);
+  }, [asset, amount, decimals, privateMode, ultraPrivateMode, useZkElgamal, mintAddress, publicKey, cluster, confidentialSupported, confidentialSupportReason]);
 
   const handleCreate = async () => {
     if (!connected || !publicKey) {
@@ -180,7 +201,74 @@ export default function CreateDropPage() {
         throw new Error("Enter a valid amount.");
       }
 
-      const drop = generateDrop({ asset, cluster, password: password.trim() ? password : undefined });
+      const dropPassword = password.trim() ? password.trim() : undefined;
+
+      // Handle Light Protocol shielded drops
+      if (ultraPrivateMode && !useZkElgamal) {
+        setShielding(true);
+        try {
+          if (!publicKey || !sendTransaction) {
+            throw new Error("Wallet connection required for shielded drops");
+          }
+          
+          // Create a wrapper function for sending transactions via wallet adapter
+          const sendTxFn = async (tx: Transaction): Promise<string> => {
+            return await sendTransaction(tx, connection, { skipPreflight: false });
+          };
+          
+          const drop = await generateDrop({
+            asset,
+            cluster,
+            password: dropPassword,
+            ultraPrivateMode: true,
+            connection,
+            payerPubkey: publicKey,
+            sendTransactionFn: sendTxFn,
+            amount: rawAmount,
+          });
+
+          if (drop.shielded) {
+            setResult({
+              ...drop,
+              signature: drop.shieldSignature || "shielded",
+            });
+            addSentDrop({
+              signature: drop.shieldSignature || "shielded",
+              address: drop.address || "shielded",
+              amount,
+              asset,
+              cluster,
+              createdAt: new Date().toISOString(),
+              status: "pending",
+            });
+            setShielding(false);
+            setProcessing(false);
+            return;
+          }
+        } catch (lightError) {
+          console.error("[DarkDrop] Compression failed:", lightError);
+          const errorMsg = lightError instanceof Error ? lightError.message : "Unknown error";
+          setError(`Compression failed: ${errorMsg}. Please check your USDC balance and try again.`);
+          setShielding(false);
+          setProcessing(false);
+          return; // Don't fall back - show the error
+          
+          // TODO: Re-enable fallback after fixing SDK loading
+          // setError(`Full privacy temporarily unavailable — using secure burner instead. Error: ${errorMsg}`);
+          // Fall through to burner wallet generation
+        } finally {
+          setShielding(false);
+        }
+      }
+
+      // Fallback to burner wallet (v1 behavior) or Token-2022 if enabled
+      const drop = await generateDrop({
+        asset,
+        cluster,
+        password: dropPassword,
+        ultraPrivateMode: false,
+        amount: rawAmount,
+      });
       const dropPubkey = new PublicKey(drop.address);
       let signature = "";
 
@@ -199,19 +287,57 @@ export default function CreateDropPage() {
       } else {
         const mintAddress = getAssetMint(asset, cluster);
         const tokenProgramId = getAssetProgramId(asset);
-        if (!mintAddress || !tokenProgramId) throw new Error("Missing token configuration for this asset.");
+        if (!mintAddress) {
+          throw new Error(`USDC mint address not configured for ${CLUSTER_LABELS[cluster]}. Please set NEXT_PUBLIC_CUSDC_MAINNET_MINT in .env.local`);
+        }
+        if (!tokenProgramId) {
+          throw new Error(`Token program ID not configured for ${symbol}`);
+        }
+        
         const mint = new PublicKey(mintAddress);
-        const fromAta = await getAssociatedTokenAddress(mint, publicKey, false, tokenProgramId);
-        const fromInfo = await connection.getAccountInfo(fromAta);
-        if (!fromInfo) throw new Error(`No ${symbol} balance on this cluster.`);
-        const toAta = await getAssociatedTokenAddress(mint, dropPubkey, true, tokenProgramId);
+        let fromAta = await getAssociatedTokenAddress(mint, publicKey, false, tokenProgramId);
+        
+        // Check if account exists - try both token programs
+        let fromInfo = await connection.getAccountInfo(fromAta);
+        let actualTokenProgramId = tokenProgramId;
+        
+        if (!fromInfo) {
+          // Try checking with token-2022 program as well (in case mint is token-2022 but config says token)
+          const { TOKEN_2022_PROGRAM_ID } = await import("@solana/spl-token");
+          const fromAta2022 = await getAssociatedTokenAddress(mint, publicKey, false, TOKEN_2022_PROGRAM_ID);
+          const fromInfo2022 = await connection.getAccountInfo(fromAta2022);
+          
+          if (fromInfo2022) {
+            // Found with token-2022, use that instead
+            fromInfo = fromInfo2022;
+            actualTokenProgramId = TOKEN_2022_PROGRAM_ID;
+            fromAta = fromAta2022;
+          } else {
+            throw new Error(`No ${symbol} balance found. Mint: ${mintAddress}, ATA (token): ${fromAta.toBase58()}, ATA (token-2022): ${fromAta2022.toBase58()}. Make sure you have ${symbol} in your wallet on ${CLUSTER_LABELS[cluster]}.`);
+          }
+        }
+        
+        // Verify the account actually has a balance
+        try {
+          const balance = await connection.getTokenAccountBalance(fromAta);
+          if (!balance.value || balance.value.uiAmount === 0) {
+            throw new Error(`Your ${symbol} account exists but has zero balance.`);
+          }
+        } catch (balanceError) {
+          if (balanceError instanceof Error && balanceError.message.includes("zero balance")) {
+            throw balanceError;
+          }
+          // If we can't get balance, continue - the account exists at least
+        }
+        const toAta = await getAssociatedTokenAddress(mint, dropPubkey, true, actualTokenProgramId);
         const toInfo = await connection.getAccountInfo(toAta);
         const instructions = [];
         if (!toInfo) {
-          instructions.push(createAssociatedTokenAccountInstruction(publicKey, toAta, dropPubkey, mint, tokenProgramId));
+          instructions.push(createAssociatedTokenAccountInstruction(publicKey, toAta, dropPubkey, mint, actualTokenProgramId));
         }
 
-        if (privateMode && asset === "usdc" && proofData) {
+        // Only use CT transfer if private mode is enabled, asset supports it, and proofs are available
+        if (privateMode && asset === "usdc" && confidentialSupported && proofData && useZkElgamal) {
           // Use CT transfer with generated proofs
           const ctPlan = await planConfidentialTransfer({
             connection,
@@ -228,13 +354,14 @@ export default function CreateDropPage() {
             );
           }
           instructions.push(...ctPlan.instructions);
-        } else if (privateMode && asset === "usdc" && !proofData) {
+        } else if (privateMode && asset === "usdc" && confidentialSupported && !proofData && useZkElgamal) {
           throw new Error(
             "Private Mode enabled but proofs not ready. Wait for proof generation to complete."
           );
         } else {
+          // Regular transfer (private mode disabled, or mint doesn't support Token-2022)
           instructions.push(
-            createTransferInstruction(fromAta, toAta, publicKey, Number(rawAmount), [], tokenProgramId)
+            createTransferInstruction(fromAta, toAta, publicKey, Number(rawAmount), [], actualTokenProgramId)
           );
         }
 
@@ -334,17 +461,42 @@ export default function CreateDropPage() {
             className="mt-2 w-full"
           />
         </label>
-        <ConfidentialPreviewCard
-          enabled={privateMode}
-          pending={privacyPending}
-          notes={confidentialNotes}
-          onToggle={(next) => setPrivateMode(next)}
-          disabledReason={
-            confidentialSupport.supported
-              ? undefined
-              : confidentialSupport.reason ?? "Asset not supported on Token-2022."
-          }
-        />
+        <div className="flex flex-col gap-2">
+          <label className="flex items-center gap-2 text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
+            <input
+              type="checkbox"
+              checked={ultraPrivateMode}
+              onChange={(e) => {
+                setUltraPrivateMode(e.target.checked);
+                if (e.target.checked) {
+                  setPrivateMode(false); // Disable Token-2022 mode when Light is enabled
+                }
+              }}
+              className="h-4 w-4"
+            />
+            <span>
+              Ultra Private Mode
+            </span>
+          </label>
+          {ultraPrivateMode && (
+            <p className="text-xs text-[rgba(224,224,224,0.5)] ml-6">
+              Uses Light Protocol zk-compression for link obfuscation. Compressed tokens/SOL owned by random keypair.
+            </p>
+          )}
+        </div>
+        {!ultraPrivateMode && (
+          <ConfidentialPreviewCard
+            enabled={privateMode}
+            pending={privacyPending}
+            notes={confidentialNotes}
+            onToggle={(next) => setPrivateMode(next)}
+            disabledReason={
+              confidentialSupported
+                ? undefined
+                : confidentialSupportReason ?? "Asset not supported on Token-2022."
+            }
+          />
+        )}
 
         <div className="flex flex-wrap items-center gap-4 border border-[rgba(0,255,65,0.2)] p-4 text-xs">
           <ShieldQuestion size={16} />
@@ -358,8 +510,8 @@ export default function CreateDropPage() {
             <ShieldAlert size={16} /> {error}
           </p>
         )}
-        <button type="button" onClick={handleCreate} disabled={processing} className="w-full justify-center">
-          {processing ? "EXECUTING..." : "CREATE DEAD DROP"}
+        <button type="button" onClick={handleCreate} disabled={processing || shielding} className="w-full justify-center">
+          {shielding ? "SHIELDING..." : processing ? "EXECUTING..." : "CREATE DEAD DROP"}
         </button>
       </DropCard>
 
@@ -377,23 +529,35 @@ export default function CreateDropPage() {
             <div className="flex flex-wrap items-center gap-3 text-xs text-[rgba(224,224,224,0.7)]">
               <ShieldCheck size={16} className="text-[var(--accent)]" />
               <p>
-                Drop address: {result.address} · {symbol} · {CLUSTER_LABELS[result.cluster]}
+                {result.shielded ? (
+                  <>Shielded Drop · {symbol} · {CLUSTER_LABELS[result.cluster]}</>
+                ) : (
+                  <>Drop address: {result.address} · {symbol} · {CLUSTER_LABELS[result.cluster]}</>
+                )}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3 text-xs text-[rgba(224,224,224,0.7)]">
-              <ArrowLeftRight size={16} />
-              <p>
-                Transfer signature:{" "}
-                <a
-                  href={explorerUrl(result.signature)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[var(--accent)] underline"
-                >
-                  {result.signature.slice(0, 12)}...
-                </a>
-              </p>
-            </div>
+            {result.signature !== "shielded" && (
+              <div className="flex flex-wrap items-center gap-3 text-xs text-[rgba(224,224,224,0.7)]">
+                <ArrowLeftRight size={16} />
+                <p>
+                  Transfer signature:{" "}
+                  <a
+                    href={explorerUrl(result.signature, result.cluster)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[var(--accent)] underline"
+                  >
+                    {result.signature.slice(0, 12)}...
+                  </a>
+                </p>
+              </div>
+            )}
+            {result.shielded && (
+              <div className="flex flex-wrap items-center gap-3 text-xs text-[rgba(224,224,224,0.7)]">
+                <ShieldCheck size={16} className="text-[var(--accent)]" />
+                <p>Shielded Drop · Amounts and links hidden on-chain via zk-compression</p>
+              </div>
+            )}
             <QRDisplay value={result.claimCode} label={claimLabel} />
           </div>
         </DropCard>
