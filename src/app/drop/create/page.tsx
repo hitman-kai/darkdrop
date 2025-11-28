@@ -542,7 +542,7 @@ export default function CreateDropPage() {
                 <p>
                   Transfer signature:{" "}
                   <a
-                    href={explorerUrl(result.signature, result.cluster)}
+                    href={explorerUrl(result.signature)}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[var(--accent)] underline"
