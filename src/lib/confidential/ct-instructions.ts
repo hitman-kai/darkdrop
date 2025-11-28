@@ -165,7 +165,7 @@ export function buildConfidentialTransferInstruction(
       { pubkey: owner, isSigner: true, isWritable: false },
     ],
     programId: TOKEN_2022_PROGRAM_ID,
-    data,
+    data: Buffer.from(data), // Convert Uint8Array to Buffer for TypeScript compatibility
   });
 }
 
