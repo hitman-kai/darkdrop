@@ -157,11 +157,33 @@ export async function generateShieldedDrop(
       });
       
       if (!tokenAccountInfo) {
+        // ATA doesn't exist - check if user has USDC with standard mint
+        // Standard USDC mint: EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G
+        const standardUSDC = new PublicKey("EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G");
+        if (!mint.equals(standardUSDC)) {
+          // Try checking with standard USDC mint
+          const standardATA = getAssociatedTokenAddressSync(
+            standardUSDC,
+            payerPubkey,
+            false,
+            TOKEN_PROGRAM_ID
+          );
+          const standardBalance = await connection.getTokenAccountBalance(standardATA).catch(() => null);
+          if (standardBalance && standardBalance.value.uiAmount && standardBalance.value.uiAmount > 0) {
+            throw new Error(
+              `USDC token account not found for configured mint ${mintAddress}. ` +
+              `You have USDC with the standard mint (EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G), ` +
+              `but the code is looking for mint ${mintAddress}. ` +
+              `Please set NEXT_PUBLIC_USDC_MAINNET_MINT=EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G in your environment variables.`
+            );
+          }
+        }
+        
         // ATA doesn't exist - user needs to receive USDC first to create the token account
         throw new Error(
           `USDC token account not found. Please ensure you have USDC in your wallet. ` +
           `If you have USDC elsewhere, try sending a small amount to yourself first to create the token account. ` +
-          `Expected ATA: ${payerATA.toBase58()}`
+          `Expected ATA: ${payerATA.toBase58()}, Mint: ${mintAddress}`
         );
       }
       
