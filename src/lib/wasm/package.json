@@ -1,0 +1,15 @@
+{
+  "name": "darkdrop_ct_proofs",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "darkdrop_ct_proofs_bg.wasm",
+    "darkdrop_ct_proofs.js",
+    "darkdrop_ct_proofs.d.ts"
+  ],
+  "main": "darkdrop_ct_proofs.js",
+  "types": "darkdrop_ct_proofs.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

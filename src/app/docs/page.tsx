@@ -19,7 +19,7 @@ const sections = [
           link between the sender and recipient beyond the initial deposit.
         </p>
         <ul className="list-disc space-y-2 pl-6 text-sm text-[rgba(224,224,224,0.75)]">
-          <li>SOL and USDC (mainnet) are supported.</li>
+          <li>SOL and cUSDC (Token-2022, mainnet) are supported.</li>
           <li>Password protection optionally encrypts the private key with AES (tweetnacl secretbox + PBKDF2).</li>
           <li>Claim strings use the format <code>darkdrop:v1:{`{cluster}`}:{`{asset}`}:{`{mode}`}:{`…`}</code>.</li>
         </ul>
@@ -34,7 +34,7 @@ const sections = [
       <ol className="space-y-3 text-sm text-[rgba(224,224,224,0.8)]">
         <li>
           Connect a wallet that is on <strong>Solana Mainnet Beta</strong> and funded with SOL (0.01 SOL buffer
-          recommended). USDC drops also require rent for the recipient ATA.
+          recommended). cUSDC (Token-2022) drops also require rent for the recipient ATA.
         </li>
         <li>
           Pick the asset + amount and optionally enter a password. When you confirm, DarkDrop generates a new burner
@@ -64,7 +64,7 @@ const sections = [
             <code>darkdrop:v1:mainnet:sol:raw:XyZ…</code> – raw SOL drop.
           </li>
           <li>
-            <code>darkdrop:v1:mainnet:usdc:aes:2f8a9c11:BASE64</code> – password-protected USDC drop.
+            <code>darkdrop:v1:mainnet:usdc:aes:2f8a9c11:BASE64</code> – password-protected cUSDC (Token-2022) drop.
           </li>
           <li>
             Older “legacy” claim strings that are just base58 private keys are still supported during import.
@@ -109,7 +109,7 @@ const sections = [
           Treat claim strings like bearer instruments. Anyone with the string can sweep the funds, so avoid copying them
           into shared channels.
         </li>
-        <li>USDC drops require ~0.002 SOL extra to pay ATA rent for the burner.</li>
+        <li>cUSDC (Token-2022) drops require ~0.002 SOL extra to pay ATA rent for the burner.</li>
       </ul>
     ),
   },

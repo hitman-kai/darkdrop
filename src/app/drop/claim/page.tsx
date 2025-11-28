@@ -7,12 +7,17 @@ import { createAssociatedTokenAccountInstruction, createTransferInstruction, get
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { RefreshCcw, Shield, ShieldAlert, ShieldOff } from "lucide-react";
 
+import { ConfidentialPreviewCard } from "@/components/ConfidentialPreviewCard";
 import { DropCard } from "@/components/DropCard";
 import { QRScanner } from "@/components/QRScanner";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { unitsToAmount } from "@/lib/amount";
-import { claimDrop } from "@/lib/drop";
-import { AssetSymbol, ClusterType, CLUSTER_LABELS, getAssetDecimals, getAssetMint, getAssetSymbol } from "@/lib/tokens";
+import { claimDrop, unshieldDrop } from "@/lib/drop";
+import { AssetSymbol, ClusterType, CLUSTER_LABELS, getAssetDecimals, getAssetMint, getAssetProgramId, getAssetSymbol } from "@/lib/tokens";
+import { createRpc } from "@lightprotocol/stateless.js";
+import BN from "bn.js";
+
+import { getConfidentialSupport, planConfidentialAccount, planConfidentialTransfer } from "@/lib/confidential/transfers";
 import { useBurnerStore } from "@/store/burner";
 import { useHistoryStore } from "@/store/history";
 import { useSettingsStore } from "@/store/settings";
@@ -22,13 +27,15 @@ type BurnerState = {
   balance: bigint;
   asset: AssetSymbol;
   cluster: ClusterType;
+  shielded?: boolean;
+  compressed?: boolean;
 };
 
 const DUST_THRESHOLD = 5_000n;
 
 export default function ClaimDropPage() {
   const { connection } = useConnection();
-  const { publicKey: mainWallet } = useWallet();
+  const { publicKey: mainWallet, sendTransaction } = useWallet();
   const setBurner = useBurnerStore((state) => state.setBurner);
   const updateDropStatus = useHistoryStore((state) => state.updateDropStatus);
   const addClaimedDrop = useHistoryStore((state) => state.addClaimedDrop);
@@ -40,16 +47,46 @@ export default function ClaimDropPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sweeping, setSweeping] = useState(false);
+  const [confidentialNotes, setConfidentialNotes] = useState<string[]>([]);
 
-  const fetchBalance = async (keypair: Keypair, asset: AssetSymbol, dropCluster: ClusterType) => {
+  const fetchBalance = async (keypair: Keypair, asset: AssetSymbol, dropCluster: ClusterType, compressed?: boolean) => {
+    // Handle compressed tokens/SOL
+    if (compressed) {
+      const compressionApiEndpoint = process.env.NEXT_PUBLIC_LIGHT_COMPRESSION_API;
+      const rpc = compressionApiEndpoint 
+        ? createRpc(connection, compressionApiEndpoint)
+        : createRpc(connection); // Defaults to same endpoint as connection
+      
+      if (asset === "sol") {
+        // Get compressed SOL accounts
+        const compressedAccounts = await rpc.getCompressedAccountsByOwner(keypair.publicKey);
+        const { sumUpLamports } = await import("@lightprotocol/stateless.js");
+        const totalBalance = sumUpLamports(compressedAccounts.items);
+        return BigInt(totalBalance.toString());
+      } else if (asset === "usdc") {
+        // Get compressed USDC accounts
+        const mintAddress = getAssetMint(asset, dropCluster);
+        if (!mintAddress) return 0n;
+        const mint = new PublicKey(mintAddress);
+        const accounts = await rpc.getCompressedTokenAccountsByOwner(keypair.publicKey, { mint });
+        const totalBalance = accounts.items.reduce(
+          (sum, account) => sum.add(account.parsed.amount),
+          new BN(0)
+        );
+        return BigInt(totalBalance.toString());
+      }
+    }
+    
+    // Regular token/SOL balance
     if (asset === "sol") {
       const lamports = await connection.getBalance(keypair.publicKey, "confirmed");
       return BigInt(lamports);
     }
     const mintAddress = getAssetMint(asset, dropCluster);
-    if (!mintAddress) return 0n;
+    const tokenProgramId = getAssetProgramId(asset);
+    if (!mintAddress || !tokenProgramId) return 0n;
     const mint = new PublicKey(mintAddress);
-    const ata = await getAssociatedTokenAddress(mint, keypair.publicKey, true);
+    const ata = await getAssociatedTokenAddress(mint, keypair.publicKey, true, tokenProgramId);
     const info = await connection.getTokenAccountBalance(ata).catch(() => null);
     if (!info?.value?.amount) return 0n;
     return BigInt(info.value.amount);
@@ -69,6 +106,48 @@ export default function ClaimDropPage() {
         return;
       }
 
+      const support = getConfidentialSupport(parsed.asset);
+
+      if (support.supported) {
+
+        const plan = await planConfidentialAccount({
+
+          connection,
+
+          asset: parsed.asset,
+
+          owner: parsed.keypair.publicKey,
+
+          destination: mainWallet ?? parsed.keypair.publicKey,
+
+        });
+
+        setConfidentialNotes(plan.notes);
+
+      } else if (support.reason) {
+
+        setConfidentialNotes([support.reason]);
+
+      }
+
+
+
+      // Handle compressed token drops
+      if (parsed.compressed) {
+        const balance = await fetchBalance(parsed.keypair, parsed.asset, parsed.cluster, true);
+        setBurner(parsed.keypair);
+        setBurnerState({
+          keypair: parsed.keypair,
+          balance,
+          asset: parsed.asset,
+          cluster: parsed.cluster,
+          compressed: true,
+        });
+        setStatus("Compressed token drop loaded. Ready to decompress.");
+        setConfidentialNotes(["Compressed Token Drop · Amounts hidden via zk-compression"]);
+        return;
+      }
+
       const balance = await fetchBalance(parsed.keypair, parsed.asset, parsed.cluster);
       setBurner(parsed.keypair);
       setBurnerState({
@@ -76,6 +155,7 @@ export default function ClaimDropPage() {
         balance,
         asset: parsed.asset,
         cluster: parsed.cluster,
+        shielded: false,
       });
       setStatus("Burner imported. Ready to sweep.");
     } catch (loadError) {
@@ -87,7 +167,7 @@ export default function ClaimDropPage() {
 
   const refreshBalance = async () => {
     if (!burner) return;
-    const balance = await fetchBalance(burner.keypair, burner.asset, burner.cluster);
+    const balance = await fetchBalance(burner.keypair, burner.asset, burner.cluster, burner.compressed);
     setBurnerState({ ...burner, balance });
   };
 
@@ -101,6 +181,55 @@ export default function ClaimDropPage() {
       return;
     }
 
+    // Handle compressed token drops (decompress via Light Protocol)
+    if (burner.compressed) {
+      setSweeping(true);
+      setError(null);
+      try {
+        if (!mainWallet || !sendTransaction) {
+          throw new Error("Wallet not connected");
+        }
+
+        const sendTxFn = async (tx: Transaction): Promise<string> => {
+          // Transaction is already partially signed with recipient keypair
+          // Wallet adapter will sign with connected wallet (fee payer)
+          return await sendTransaction(tx, connection, { skipPreflight: false });
+        };
+
+        const assetForLight = burner.asset === "usdc" ? "USDC" : "SOL";
+        const signature = await unshieldDrop(
+          burner.keypair,
+          assetForLight,
+          burner.balance,
+          mainWallet, // For SOL, this is the recipient. For USDC, we'll get ATA inside unshieldDrop
+          connection,
+          mainWallet,
+          sendTxFn
+        );
+
+        updateDropStatus("compressed", "claimed");
+        addClaimedDrop({
+          address: burner.keypair.publicKey.toBase58(),
+          amount: Number(burner.balance) / Math.pow(10, getAssetDecimals(burner.asset)),
+          asset: burner.asset,
+          cluster: burner.cluster,
+          signature,
+          claimedAt: new Date().toISOString(),
+        });
+
+        setStatus("Compressed tokens decompressed successfully.");
+        setBurnerState(null);
+        setBurner(null);
+        setClaimCode("");
+        setPassword("");
+      } catch (decompressError) {
+        setError(decompressError instanceof Error ? decompressError.message : "Decompress failed.");
+      } finally {
+        setSweeping(false);
+      }
+      return;
+    }
+
     const decimals = getAssetDecimals(burner.asset);
 
     if (burner.asset === "sol" && burner.balance <= DUST_THRESHOLD) {
@@ -109,7 +238,7 @@ export default function ClaimDropPage() {
     }
 
     if (burner.asset === "usdc" && burner.balance <= 0n) {
-      setError("No USDC remaining to sweep.");
+      setError("No cUSDC remaining to sweep.");
       return;
     }
 
@@ -145,18 +274,23 @@ export default function ClaimDropPage() {
         });
       } else {
         const mintAddress = getAssetMint(burner.asset, burner.cluster);
-        if (!mintAddress) throw new Error("Missing token mint for USDC.");
+        const tokenProgramId = getAssetProgramId(burner.asset);
+        if (!mintAddress || !tokenProgramId) throw new Error("Missing token mint for cUSDC (Token-2022).");
         const mint = new PublicKey(mintAddress);
-        const sourceAta = await getAssociatedTokenAddress(mint, burner.keypair.publicKey, true);
-        const destAta = await getAssociatedTokenAddress(mint, mainWallet, true);
+        const sourceAta = await getAssociatedTokenAddress(mint, burner.keypair.publicKey, true, tokenProgramId);
+        const destAta = await getAssociatedTokenAddress(mint, mainWallet, true, tokenProgramId);
         const instructions = [];
         const destInfo = await connection.getAccountInfo(destAta);
         if (!destInfo) {
-          instructions.push(createAssociatedTokenAccountInstruction(mainWallet, destAta, mainWallet, mint));
+          instructions.push(createAssociatedTokenAccountInstruction(mainWallet, destAta, mainWallet, mint, tokenProgramId));
         }
+
+        // Use standard transfer for claiming
+        // CT proofs were validated during creation, standard transfer works for claiming
         instructions.push(
-          createTransferInstruction(sourceAta, destAta, burner.keypair.publicKey, Number(burner.balance))
+          createTransferInstruction(sourceAta, destAta, burner.keypair.publicKey, Number(burner.balance), [], tokenProgramId)
         );
+
         const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
         const tx = new Transaction().add(...instructions);
         tx.recentBlockhash = blockhash;
@@ -189,11 +323,13 @@ export default function ClaimDropPage() {
   };
 
   const balanceDisplay = burner
-    ? `${unitsToAmount(
-        burner.balance,
-        getAssetDecimals(burner.asset),
-        burner.asset === "sol" ? 6 : 4
-      )} ${getAssetSymbol(burner.asset)}`
+    ? burner.shielded
+      ? "Hidden (shielded)"
+      : `${unitsToAmount(
+          burner.balance,
+          getAssetDecimals(burner.asset),
+          burner.asset === "sol" ? 6 : 4
+        )} ${getAssetSymbol(burner.asset)}`
     : "0";
 
   return (
@@ -255,15 +391,34 @@ export default function ClaimDropPage() {
       </DropCard>
 
       {burner && (
-        <DropCard title="SWEEP" subtitle="Inspect burner balance and push everything to your main wallet.">
+        <DropCard
+          title={burner.shielded ? "UNSHIELD" : "SWEEP"}
+          subtitle={
+            burner.shielded
+              ? "Unshield the note to your main wallet via Light Protocol."
+              : "Inspect burner balance and push everything to your main wallet."
+          }
+        >
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-[rgba(224,224,224,0.8)]">
-              Burner address: <span className="text-[var(--accent)]">{burner.keypair.publicKey.toBase58()}</span>
-            </p>
+            {!burner.shielded && (
+              <p className="text-sm text-[rgba(224,224,224,0.8)]">
+                Burner address: <span className="text-[var(--accent)]">{burner.keypair.publicKey.toBase58()}</span>
+              </p>
+            )}
             <p className="text-sm text-[rgba(224,224,224,0.8)]">
               Asset: <strong>{getAssetSymbol(burner.asset)}</strong> · Cluster: {CLUSTER_LABELS[burner.cluster]}
             </p>
             <p className="text-sm text-[rgba(224,224,224,0.8)]">Balance: <strong>{balanceDisplay}</strong></p>
+            {confidentialNotes.length > 0 && (
+              <ConfidentialPreviewCard
+                enabled
+                interactive={false}
+                notes={confidentialNotes}
+                description="Proof + decrypt steps will show here once private rails go live."
+                label="CONFIDENTIAL ACCOUNT NOTES"
+              />
+            )}
+
             <div className="flex gap-3">
               <button type="button" onClick={refreshBalance} className="flex flex-1 items-center justify-center gap-2">
                 <RefreshCcw size={16} />
@@ -276,7 +431,17 @@ export default function ClaimDropPage() {
                 className="flex flex-1 items-center justify-center gap-2 border-[rgba(255,0,68,0.6)] bg-[rgba(255,0,68,0.08)] text-[var(--danger)]"
               >
                 <ShieldOff size={16} />
-                {sweeping ? "PURGING..." : "SWEEP TO MAIN WALLET"}
+                {sweeping
+                  ? burner.compressed
+                    ? "DECOMPRESSING..."
+                    : burner.shielded
+                    ? "UNSHIELDING..."
+                    : "PURGING..."
+                  : burner.compressed
+                    ? "DECOMPRESS TO MAIN WALLET"
+                    : burner.shielded
+                    ? "UNSHIELD TO MAIN WALLET"
+                    : "SWEEP TO MAIN WALLET"}
               </button>
             </div>
           </div>
