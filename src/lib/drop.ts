@@ -122,12 +122,33 @@ export async function generateShieldedDrop(
       const mint = new PublicKey(mintAddress);
       
       // Get/create payer's USDC ATA
-      const payerATA = getAssociatedTokenAddressSync(
+      // Try both TOKEN_PROGRAM_ID and TOKEN_2022_PROGRAM_ID to find the account
+      // First try standard token program
+      let payerATA = getAssociatedTokenAddressSync(
         mint,
         payerPubkey,
         false,
         TOKEN_PROGRAM_ID
       );
+      
+      // Check if account exists with standard token program
+      let ataInfo = await connection.getAccountInfo(payerATA);
+      
+      // If not found, try Token-2022 program
+      if (!ataInfo) {
+        const { TOKEN_2022_PROGRAM_ID } = await import("@solana/spl-token");
+        const payerATA2022 = getAssociatedTokenAddressSync(
+          mint,
+          payerPubkey,
+          false,
+          TOKEN_2022_PROGRAM_ID
+        );
+        const ata2022Info = await connection.getAccountInfo(payerATA2022);
+        if (ata2022Info) {
+          payerATA = payerATA2022;
+          ataInfo = ata2022Info;
+        }
+      }
 
       // Check if payer has USDC balance
       const tokenAccountInfo = await connection.getTokenAccountBalance(payerATA).catch((err) => {
