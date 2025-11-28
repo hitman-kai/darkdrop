@@ -130,19 +130,22 @@ export async function generateShieldedDrop(
       );
 
       // Check if payer has USDC balance
-      const tokenAccountInfo = await connection.getTokenAccountBalance(payerATA).catch(() => null);
+      const tokenAccountInfo = await connection.getTokenAccountBalance(payerATA).catch((err) => {
+        console.error("[Light Protocol] Error fetching USDC balance:", err);
+        return null;
+      });
       
       if (!tokenAccountInfo) {
-        // ATA doesn't exist or couldn't be fetched - user likely doesn't have USDC
+        // ATA doesn't exist - user needs to receive USDC first to create the token account
         throw new Error(
-          `No USDC token account found. Please ensure you have USDC in your wallet. ` +
-          `If you have USDC, try receiving a small amount first to create the token account. ` +
-          `ATA: ${payerATA.toBase58()}`
+          `USDC token account not found. Please ensure you have USDC in your wallet. ` +
+          `If you have USDC elsewhere, try sending a small amount to yourself first to create the token account. ` +
+          `Expected ATA: ${payerATA.toBase58()}`
         );
       }
       
-      if (tokenAccountInfo.value.uiAmount === null || tokenAccountInfo.value.uiAmount === 0) {
-        throw new Error(`Insufficient USDC balance. Please ensure you have enough USDC in your wallet.`);
+      if (!tokenAccountInfo.value || tokenAccountInfo.value.uiAmount === null || tokenAccountInfo.value.uiAmount === 0) {
+        throw new Error(`Insufficient USDC balance. Your balance is 0 USDC. Please add USDC to your wallet.`);
       }
       
       const availableBalance = BigInt(tokenAccountInfo.value.amount);
