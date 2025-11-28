@@ -54,7 +54,7 @@ function createProofInstruction(
   return new TransactionInstruction({
     keys: [],
     programId: ZK_ELGAMAL_PROOF_PROGRAM_ID,
-    data,
+    data: Buffer.from(data), // Convert Uint8Array to Buffer for TypeScript compatibility
   });
 }
 
