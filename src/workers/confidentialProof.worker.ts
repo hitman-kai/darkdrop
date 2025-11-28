@@ -14,6 +14,7 @@ type Token2022Payload = {
   owner?: string;
   destination?: string;
   cluster?: string;
+  sender_balance?: string;
 };
 
 type WorkerRequest = {
