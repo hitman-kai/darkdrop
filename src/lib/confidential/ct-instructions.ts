@@ -200,7 +200,7 @@ export function buildCTTransferWithProofs(
         { pubkey: owner, isSigner: true, isWritable: false },
       ],
       programId: TOKEN_2022_PROGRAM_ID,
-      data: transferData,
+      data: Buffer.from(transferData), // Convert Uint8Array to Buffer for TypeScript compatibility
     }),
   ];
 }
