@@ -54,7 +54,7 @@ export const ASSETS: Record<AssetSymbol, AssetMeta> = {
     label: "USD Coin",
     decimals: 6,
     kind: "spl",
-    mint: USDC_MINTS,
+    mint: CUSDC_MINTS,
     program: "token",
   },
 };
