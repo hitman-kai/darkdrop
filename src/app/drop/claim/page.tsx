@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { createAssociatedTokenAccountInstruction, createTransferInstruction, getAssociatedTokenAddress } from "@solana/spl-token";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { RefreshCcw, Shield, ShieldAlert, ShieldOff } from "lucide-react";
+import { RefreshCcw, Shield, ShieldAlert, ShieldOff, Zap, Radio } from "lucide-react";
 
 import { ConfidentialPreviewCard } from "@/components/ConfidentialPreviewCard";
 import { DropCard } from "@/components/DropCard";
@@ -49,6 +49,11 @@ export default function ClaimDropPage() {
   const [error, setError] = useState<string | null>(null);
   const [sweeping, setSweeping] = useState(false);
   const [confidentialNotes, setConfidentialNotes] = useState<string[]>([]);
+  
+  // Relayer mode state
+  const [useRelayer, setUseRelayer] = useState(false);
+  const [customDestination, setCustomDestination] = useState("");
+  const [relayerStatus, setRelayerStatus] = useState<{ online: boolean; fee: number } | null>(null);
 
   const fetchBalance = async (keypair: Keypair, asset: AssetSymbol, dropCluster: ClusterType, compressed?: boolean) => {
     // Handle compressed tokens/SOL
@@ -353,6 +358,93 @@ export default function ClaimDropPage() {
     }
   };
 
+  // Check relayer status
+  const checkRelayerStatus = async () => {
+    try {
+      const response = await fetch("/api/relay/claim");
+      if (response.ok) {
+        const data = await response.json();
+        setRelayerStatus({ online: data.status === "online", fee: data.feePercent || 1 });
+      } else {
+        setRelayerStatus({ online: false, fee: 1 });
+      }
+    } catch {
+      setRelayerStatus({ online: false, fee: 1 });
+    }
+  };
+
+  // Claim via relayer (no wallet connection needed)
+  const claimViaRelayer = async () => {
+    if (!burner) {
+      setError("No drop loaded.");
+      return;
+    }
+
+    if (!burner.compressed) {
+      setError("Relayer only supports compressed drops (Ultra Private Mode).");
+      return;
+    }
+
+    const destination = customDestination.trim() || mainWallet?.toBase58();
+    if (!destination) {
+      setError("Enter a destination wallet address or connect your wallet.");
+      return;
+    }
+
+    // Validate destination address
+    try {
+      new PublicKey(destination);
+    } catch {
+      setError("Invalid destination wallet address.");
+      return;
+    }
+
+    setSweeping(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/relay/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          claimCode: claimCode,
+          destination: destination,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Relayer claim failed");
+      }
+
+      const decimals = getAssetDecimals(burner.asset);
+      const amountReceived = result.amountReceived / Math.pow(10, decimals);
+      const feePaid = result.feePaid / Math.pow(10, decimals);
+
+      updateDropStatus("compressed", "claimed");
+      addClaimedDrop({
+        address: burner.keypair.publicKey.toBase58(),
+        amount: amountReceived.toString(),
+        asset: burner.asset,
+        cluster: burner.cluster,
+        signature: result.signature,
+        claimedAt: new Date().toISOString(),
+      });
+
+      setStatus(`Claimed via relayer! Received ${amountReceived.toFixed(4)} ${getAssetSymbol(burner.asset)} (${feePaid.toFixed(4)} fee)`);
+      setBurnerState(null);
+      setBurner(null);
+      setClaimCode("");
+      setPassword("");
+      setCustomDestination("");
+    } catch (relayError) {
+      setError(relayError instanceof Error ? relayError.message : "Relayer claim failed.");
+    } finally {
+      setSweeping(false);
+    }
+  };
+
   const balanceDisplay = burner
     ? burner.shielded
       ? "Hidden (shielded)"
@@ -450,30 +542,98 @@ export default function ClaimDropPage() {
               />
             )}
 
+            {/* Relayer Mode Toggle - Only for compressed drops */}
+            {burner.compressed && (
+              <div className="border border-[rgba(0,255,65,0.2)] bg-black/30 p-4 space-y-4">
+                <p className="text-xs tracking-[0.4em] text-[var(--accent)]">CLAIM MODE</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setUseRelayer(false)}
+                    className={`p-3 text-left ${!useRelayer ? 'border-[var(--accent)] bg-[rgba(0,255,65,0.08)]' : 'border-[rgba(0,255,65,0.2)]'}`}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-mono">
+                      <Zap size={14} />
+                      DIRECT
+                    </div>
+                    <p className="text-xs text-[rgba(224,224,224,0.6)] mt-1">You pay gas</p>
+                    <p className="text-xs text-[rgba(224,224,224,0.6)]">Requires funded wallet</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setUseRelayer(true); checkRelayerStatus(); }}
+                    className={`p-3 text-left ${useRelayer ? 'border-[var(--accent)] bg-[rgba(0,255,65,0.08)]' : 'border-[rgba(0,255,65,0.2)]'}`}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-mono">
+                      <Radio size={14} />
+                      RELAYER
+                    </div>
+                    <p className="text-xs text-[rgba(224,224,224,0.6)] mt-1">1% fee, relayer pays gas</p>
+                    <p className="text-xs text-[var(--accent)]">Fresh 0 SOL wallet OK</p>
+                  </button>
+                </div>
+
+                {useRelayer && (
+                  <div className="space-y-3 pt-2 border-t border-[rgba(0,255,65,0.1)]">
+                    {relayerStatus && (
+                      <p className={`text-xs ${relayerStatus.online ? 'text-[var(--accent)]' : 'text-[var(--danger)]'}`}>
+                        Relayer: {relayerStatus.online ? 'Online' : 'Offline'} | Fee: 1%
+                      </p>
+                    )}
+                    <label className="block text-xs tracking-[0.3em] text-[rgba(224,224,224,0.6)]">
+                      DESTINATION WALLET
+                      <input
+                        type="text"
+                        value={customDestination}
+                        onChange={(e) => setCustomDestination(e.target.value)}
+                        placeholder={mainWallet?.toBase58() || "Enter fresh wallet address..."}
+                        className="mt-2 w-full text-sm"
+                      />
+                    </label>
+                    <p className="text-xs text-[rgba(224,224,224,0.5)]">
+                      Can be any wallet - no SOL needed. Leave empty to use connected wallet.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button type="button" onClick={refreshBalance} className="flex flex-1 items-center justify-center gap-2">
                 <RefreshCcw size={16} />
                 REFRESH BALANCE
               </button>
-              <button
-                type="button"
-                onClick={sweepDrop}
-                disabled={sweeping}
-                className="flex flex-1 items-center justify-center gap-2 border-[rgba(255,0,68,0.6)] bg-[rgba(255,0,68,0.08)] text-[var(--danger)]"
-              >
-                <ShieldOff size={16} />
-                {sweeping
-                  ? burner.compressed
-                    ? "DECOMPRESSING..."
-                    : burner.shielded
-                    ? "UNSHIELDING..."
-                    : "PURGING..."
-                  : burner.compressed
-                    ? "DECOMPRESS TO MAIN WALLET"
-                    : burner.shielded
-                    ? "UNSHIELD TO MAIN WALLET"
-                    : "SWEEP TO MAIN WALLET"}
-              </button>
+              {useRelayer && burner.compressed ? (
+                <button
+                  type="button"
+                  onClick={claimViaRelayer}
+                  disabled={sweeping || (relayerStatus && !relayerStatus.online)}
+                  className="flex flex-1 items-center justify-center gap-2 border-[rgba(0,255,65,0.6)] bg-[rgba(0,255,65,0.08)] text-[var(--accent)]"
+                >
+                  <Radio size={16} />
+                  {sweeping ? "CLAIMING VIA RELAYER..." : "CLAIM VIA RELAYER"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={sweepDrop}
+                  disabled={sweeping}
+                  className="flex flex-1 items-center justify-center gap-2 border-[rgba(255,0,68,0.6)] bg-[rgba(255,0,68,0.08)] text-[var(--danger)]"
+                >
+                  <ShieldOff size={16} />
+                  {sweeping
+                    ? burner.compressed
+                      ? "DECOMPRESSING..."
+                      : burner.shielded
+                      ? "UNSHIELDING..."
+                      : "PURGING..."
+                    : burner.compressed
+                      ? "DECOMPRESS TO MAIN WALLET"
+                      : burner.shielded
+                      ? "UNSHIELD TO MAIN WALLET"
+                      : "SWEEP TO MAIN WALLET"}
+                </button>
+              )}
             </div>
           </div>
         </DropCard>
