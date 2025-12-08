@@ -681,36 +681,47 @@ export async function unshieldDrop(
         recentValidityProof: proof.compressedProof,
       });
 
-      // Fix: Mark ALL non-program accounts as writable to ensure CPI works
-      // The Light System Program's inner CPI needs proper writable flags
+      // Fix: Force ALL accounts that start with 'smt' or 'nfq' (state trees/queues) to be writable
+      // Also mark token pool and destination as writable
+      // The Light System Program CPI needs these to be writable
+      
       const programIds = new Set([
         "11111111111111111111111111111111", // System Program
-        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", // Token Program
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", // Token Program  
         "SySTEM1eSU2p4BGQfQpimFEWWSC1XDFeun3Nqzz3rT7", // Light System Program
         "cTokenmWW8bLPjZEBAUgYy3zKxQZW6VKi7bqNFEVv3m", // Compressed Token Program
         "compr6CUsB5m2jS4Y3831ztGSTnDpnKJTKS95d64XVq", // Account Compression Program
         "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV", // Noop Program
       ]);
       
-      // Mark accounts as writable based on their role
-      decompressIx.keys = decompressIx.keys.map((key, index) => {
+      // Force rebuild keys array with proper writable flags
+      const newKeys = decompressIx.keys.map((key, index) => {
         const pubkeyStr = key.pubkey.toBase58();
         
-        // Skip program IDs - they should never be writable
+        // Skip program IDs
         if (programIds.has(pubkeyStr)) {
           return key;
         }
         
-        // Mark all data accounts as writable (index > 8 are typically state trees, queues, pools)
-        // Also keep existing writable flags
-        if (index >= 9 || key.isWritable) {
-          return { ...key, isWritable: true };
+        // Mark state trees (smt...) and queues (nfq...) as writable
+        if (pubkeyStr.startsWith('smt') || pubkeyStr.startsWith('nfq')) {
+          console.log(`[Light Protocol] Marking ${pubkeyStr.slice(0, 8)}... as writable (state tree/queue)`);
+          return { pubkey: key.pubkey, isSigner: key.isSigner, isWritable: true };
+        }
+        
+        // Mark accounts at index >= 9 as writable (token pool, destination, etc)
+        if (index >= 9) {
+          return { pubkey: key.pubkey, isSigner: key.isSigner, isWritable: true };
         }
         
         return key;
       });
       
+      // Replace the keys
+      decompressIx.keys = newKeys;
+      
       console.log("[Light Protocol] Instruction has", decompressIx.keys.length, "accounts");
+      console.log("[Light Protocol] Writable accounts:", decompressIx.keys.filter(k => k.isWritable).map(k => k.pubkey.toBase58().slice(0, 8) + '...'));
 
       computeUnits = 350_000;
     }
