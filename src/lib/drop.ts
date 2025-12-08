@@ -681,36 +681,36 @@ export async function unshieldDrop(
         recentValidityProof: proof.compressedProof,
       });
 
-      // Fix: Ensure all necessary accounts are marked as writable
-      // The SDK sometimes doesn't set this correctly for decompression
-      // We need to mark: state trees, queues, token pools, and destination token accounts
+      // Fix: Mark ALL non-program accounts as writable to ensure CPI works
+      // The Light System Program's inner CPI needs proper writable flags
+      const programIds = new Set([
+        "11111111111111111111111111111111", // System Program
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", // Token Program
+        "SySTEM1eSU2p4BGQfQpimFEWWSC1XDFeun3Nqzz3rT7", // Light System Program
+        "cTokenmWW8bLPjZEBAUgYy3zKxQZW6VKi7bqNFEVv3m", // Compressed Token Program
+        "compr6CUsB5m2jS4Y3831ztGSTnDpnKJTKS95d64XVq", // Account Compression Program
+        "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV", // Noop Program
+      ]);
       
-      const writableAddresses = new Set<string>();
-      
-      // Add state tree and queue accounts from input compressed accounts
-      inputAccounts.forEach(account => {
-        writableAddresses.add(account.compressedAccount.treeInfo.tree.toBase58());
-        writableAddresses.add(account.compressedAccount.treeInfo.queue.toBase58());
-      });
-      
-      // Mark the token pool PDA and destination token account as writable
-      // These are typically at specific indices in the decompress instruction
-      // Index 9: Token Pool PDA, Index 10: Destination Token Account
-      if (decompressIx.keys.length > 9) {
-        writableAddresses.add(decompressIx.keys[9].pubkey.toBase58()); // Token Pool PDA
-      }
-      if (decompressIx.keys.length > 10) {
-        writableAddresses.add(decompressIx.keys[10].pubkey.toBase58()); // Destination Token Account
-      }
-      
-      decompressIx.keys = decompressIx.keys.map(key => {
-        if (writableAddresses.has(key.pubkey.toBase58())) {
+      // Mark accounts as writable based on their role
+      decompressIx.keys = decompressIx.keys.map((key, index) => {
+        const pubkeyStr = key.pubkey.toBase58();
+        
+        // Skip program IDs - they should never be writable
+        if (programIds.has(pubkeyStr)) {
+          return key;
+        }
+        
+        // Mark all data accounts as writable (index > 8 are typically state trees, queues, pools)
+        // Also keep existing writable flags
+        if (index >= 9 || key.isWritable) {
           return { ...key, isWritable: true };
         }
+        
         return key;
       });
       
-      console.log("[Light Protocol] Marked accounts as writable:", Array.from(writableAddresses));
+      console.log("[Light Protocol] Instruction has", decompressIx.keys.length, "accounts");
 
       computeUnits = 350_000;
     }
