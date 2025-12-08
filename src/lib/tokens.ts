@@ -22,6 +22,7 @@ export const RPC_ENDPOINTS: Record<ClusterType, string> = {
 const USDC_MINTS: Record<ClusterType, string> = {
   mainnet:
     process.env.NEXT_PUBLIC_USDC_MAINNET_MINT ??
+    process.env.NEXT_PUBLIC_CUSDC_MAINNET_MINT ??
     "",
 };
 
