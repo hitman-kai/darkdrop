@@ -681,6 +681,23 @@ export async function unshieldDrop(
         recentValidityProof: proof.compressedProof,
       });
 
+      // Fix: Ensure all state tree and queue accounts are marked as writable
+      // The SDK sometimes doesn't set this correctly
+      const stateTreeAddresses = new Set<string>();
+      inputAccounts.forEach(account => {
+        stateTreeAddresses.add(account.compressedAccount.treeInfo.tree.toBase58());
+        stateTreeAddresses.add(account.compressedAccount.treeInfo.queue.toBase58());
+      });
+      
+      decompressIx.keys = decompressIx.keys.map(key => {
+        if (stateTreeAddresses.has(key.pubkey.toBase58())) {
+          return { ...key, isWritable: true };
+        }
+        return key;
+      });
+      
+      console.log("[Light Protocol] Marked state tree accounts as writable:", Array.from(stateTreeAddresses));
+
       computeUnits = 350_000;
     }
 
