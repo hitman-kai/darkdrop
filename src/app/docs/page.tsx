@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, Lock, Shield, Share, Terminal } from "lucide-react";
+import { ArrowUpRight, Eye, EyeOff, Lock, Shield, Share, Terminal } from "lucide-react";
 
 export const metadata = {
   title: "DarkDrop Documentation",
@@ -46,6 +46,46 @@ const sections = [
             <strong>Claim:</strong> Recipient decompresses the funds to their wallet using validity proofs.
           </li>
         </ol>
+      </>
+    ),
+  },
+  {
+    id: "privacy-model",
+    title: "Privacy Model",
+    icon: <EyeOff size={18} />,
+    content: (
+      <>
+        <p>
+          DarkDrop v2 breaks the on-chain link between sender and receiver. Here&apos;s how privacy works:
+        </p>
+        <div className="mt-4 space-y-4">
+          <div className="border-l-2 border-[var(--accent)] pl-4">
+            <p className="text-xs tracking-wider text-[var(--accent)] mb-2">WHAT&apos;S HIDDEN</p>
+            <ul className="list-disc space-y-1 pl-4 text-sm text-[rgba(224,224,224,0.75)]">
+              <li>The recipient address until claim time</li>
+              <li>The link between deposit and withdrawal (different wallets)</li>
+              <li>The exact compressed account in the Merkle tree</li>
+              <li>Who created the drop vs who claimed it</li>
+            </ul>
+          </div>
+          <div className="border-l-2 border-[rgba(224,224,224,0.3)] pl-4">
+            <p className="text-xs tracking-wider text-[rgba(224,224,224,0.5)] mb-2">WHAT&apos;S VISIBLE</p>
+            <ul className="list-disc space-y-1 pl-4 text-sm text-[rgba(224,224,224,0.6)]">
+              <li>Amount deposited into the ZK compression pool</li>
+              <li>Amount withdrawn from the compression pool</li>
+              <li>The claimer&apos;s wallet address (when they claim)</li>
+            </ul>
+          </div>
+          <div className="mt-4 bg-black/40 p-4 font-mono text-xs text-[rgba(224,224,224,0.7)]">
+            <p className="text-[var(--accent)] mb-2">// Privacy Flow</p>
+            <p>Creator (Wallet A) --&gt; Compress --&gt; Merkle Tree</p>
+            <p className="text-[rgba(224,224,224,0.4)]">{"                              |"}</p>
+            <p className="text-[rgba(224,224,224,0.4)]">{"                    [share code off-chain]"}</p>
+            <p className="text-[rgba(224,224,224,0.4)]">{"                              |"}</p>
+            <p>Claimer (Wallet B) &lt;-- Decompress &lt;-- Merkle Tree</p>
+            <p className="mt-2 text-[var(--accent)]">// No on-chain link between Wallet A and B</p>
+          </div>
+        </div>
       </>
     ),
   },
