@@ -681,45 +681,11 @@ export async function unshieldDrop(
         recentValidityProof: proof.compressedProof,
       });
 
-      // Fix: Force ALL accounts that start with 'smt' or 'nfq' (state trees/queues) to be writable
-      // Also mark token pool and destination as writable
-      // The Light System Program CPI needs these to be writable
-      
-      const programIds = new Set([
-        "11111111111111111111111111111111", // System Program
-        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", // Token Program  
-        "SySTEM1eSU2p4BGQfQpimFEWWSC1XDFeun3Nqzz3rT7", // Light System Program
-        "cTokenmWW8bLPjZEBAUgYy3zKxQZW6VKi7bqNFEVv3m", // Compressed Token Program
-        "compr6CUsB5m2jS4Y3831ztGSTnDpnKJTKS95d64XVq", // Account Compression Program
-        "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV", // Noop Program
-      ]);
-      
-      // Force rebuild keys array with proper writable flags
-      const newKeys = decompressIx.keys.map((key, index) => {
-        const pubkeyStr = key.pubkey.toBase58();
-        
-        // Skip program IDs
-        if (programIds.has(pubkeyStr)) {
-          return key;
-        }
-        
-        // Mark state trees (smt...) and queues (nfq...) as writable
-        if (pubkeyStr.startsWith('smt') || pubkeyStr.startsWith('nfq')) {
-          console.log(`[Light Protocol] Marking ${pubkeyStr.slice(0, 8)}... as writable (state tree/queue)`);
-          return { pubkey: key.pubkey, isSigner: key.isSigner, isWritable: true };
-        }
-        
-        // Mark accounts at index >= 9 as writable (token pool, destination, etc)
-        if (index >= 9) {
-          return { pubkey: key.pubkey, isSigner: key.isSigner, isWritable: true };
-        }
-        
-        return key;
+      // Log the SDK's original instruction keys
+      console.log("[Light Protocol] SDK instruction keys:");
+      decompressIx.keys.forEach((k, i) => {
+        console.log(`  [${i}] ${k.pubkey.toBase58().slice(0, 8)}... writable=${k.isWritable} signer=${k.isSigner}`);
       });
-      
-      // Replace the keys
-      decompressIx.keys = newKeys;
-      
       console.log("[Light Protocol] Instruction has", decompressIx.keys.length, "accounts");
       console.log("[Light Protocol] Writable accounts:", decompressIx.keys.filter(k => k.isWritable).map(k => k.pubkey.toBase58().slice(0, 8) + '...'));
 
@@ -730,16 +696,19 @@ export async function unshieldDrop(
     const { blockhash } = await connection.getLatestBlockhash();
     const tx = new Transaction();
     
-    // Add compute budget (add extra for ATA creation if needed)
-    const finalComputeUnits = asset === "USDC" && needsATACreation ? computeUnits + 50_000 : computeUnits;
-    tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: finalComputeUnits }));
+    // Add compute budget
+    tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnits }));
     
-    // Create claimer's ATA if it doesn't exist (for USDC)
+    // Create claimer's ATA in a SEPARATE transaction if needed (for USDC)
+    // This avoids conflicts with writable account slots in the decompress transaction
     if (asset === "USDC" && needsATACreation && claimerATA) {
       const mintAddress = getAssetMint("usdc", "mainnet");
       if (mintAddress) {
         const mint = new PublicKey(mintAddress);
-        tx.add(
+        console.log("[Light Protocol] Creating ATA in separate transaction first...");
+        
+        const ataTx = new Transaction();
+        ataTx.add(
           createAssociatedTokenAccountInstruction(
             payerPubkey,
             claimerATA,
@@ -748,7 +717,21 @@ export async function unshieldDrop(
             TOKEN_PROGRAM_ID
           )
         );
-        console.log("[Light Protocol] Added ATA creation instruction");
+        ataTx.recentBlockhash = blockhash;
+        ataTx.feePayer = payerPubkey;
+        
+        try {
+          const ataSig = await sendTransactionFn(ataTx);
+          await connection.confirmTransaction(ataSig, "confirmed");
+          console.log("[Light Protocol] ATA created successfully:", ataSig);
+        } catch (ataError: any) {
+          // If ATA already exists, that's fine
+          if (!ataError?.message?.includes("already in use")) {
+            console.error("[Light Protocol] ATA creation failed:", ataError);
+            throw ataError;
+          }
+          console.log("[Light Protocol] ATA already exists, continuing...");
+        }
       }
     }
     
@@ -788,6 +771,17 @@ export async function unshieldDrop(
     } else {
       console.warn("[Light Protocol] WARNING: Recipient keypair is not a required signer, but it should be!");
     }
+
+    // Log the transaction instructions before sending
+    console.log("[Light Protocol] Transaction has", tx.instructions.length, "instructions");
+    const decompressIxInTx = tx.instructions[tx.instructions.length - 1]; // The decompress ix is the last one
+    console.log("[Light Protocol] Decompress instruction in tx has", decompressIxInTx.keys.length, "keys");
+    console.log("[Light Protocol] All writable keys in decompress ix:");
+    decompressIxInTx.keys.forEach((k, i) => {
+      if (k.isWritable) {
+        console.log(`  [${i}] ${k.pubkey.toBase58().slice(0, 8)}... writable=${k.isWritable}`);
+      }
+    });
 
     // Send transaction - wallet adapter will add its signature
     const decompressSignature = await sendTransactionFn(tx);
