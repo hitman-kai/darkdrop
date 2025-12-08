@@ -1,5 +1,5 @@
 import { Connection, Keypair, PublicKey, sendAndConfirmTransaction, Transaction, TransactionInstruction, ComputeBudgetProgram } from "@solana/web3.js";
-import { getAssociatedTokenAddress, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { getAssociatedTokenAddress, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction } from "@solana/spl-token";
 import bs58 from "bs58";
 import nacl from "tweetnacl";
 import BN from "bn.js";
@@ -8,6 +8,12 @@ import { createRpc, selectStateTreeInfo, bn, LightSystemProgram, sumUpLamports }
 
 import { decryptPrivateKey, encryptPrivateKey } from "@/lib/encryption";
 import { AssetSymbol, ClusterType, DEFAULT_ASSET, DEFAULT_CLUSTER, getAssetMint } from "@/lib/tokens";
+import { generateNullifier, generateNullifierFromSecret, getNullifierRegistry } from "@/lib/nullifier";
+import { 
+  createMarkNullifierUsedInstruction, 
+  checkNullifierOnChain,
+  NULLIFIER_REGISTRY_PROGRAM_ID 
+} from "@/lib/nullifier-onchain";
 
 const CODE_PREFIX = "darkdrop";
 const CODE_VERSION = "v2";
@@ -157,33 +163,11 @@ export async function generateShieldedDrop(
       });
       
       if (!tokenAccountInfo) {
-        // ATA doesn't exist - check if user has USDC with standard mint
-        // Standard USDC mint: EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G
-        const standardUSDC = new PublicKey("EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G");
-        if (!mint.equals(standardUSDC)) {
-          // Try checking with standard USDC mint
-          const standardATA = getAssociatedTokenAddressSync(
-            standardUSDC,
-            payerPubkey,
-            false,
-            TOKEN_PROGRAM_ID
-          );
-          const standardBalance = await connection.getTokenAccountBalance(standardATA).catch(() => null);
-          if (standardBalance && standardBalance.value.uiAmount && standardBalance.value.uiAmount > 0) {
-            throw new Error(
-              `USDC token account not found for configured mint ${mintAddress}. ` +
-              `You have USDC with the standard mint (EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G), ` +
-              `but the code is looking for mint ${mintAddress}. ` +
-              `Please set NEXT_PUBLIC_USDC_MAINNET_MINT=EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G in your environment variables.`
-            );
-          }
-        }
-        
         // ATA doesn't exist - user needs to receive USDC first to create the token account
         throw new Error(
           `USDC token account not found. Please ensure you have USDC in your wallet. ` +
           `If you have USDC elsewhere, try sending a small amount to yourself first to create the token account. ` +
-          `Expected ATA: ${payerATA.toBase58()}, Mint: ${mintAddress}`
+          `Expected ATA: ${payerATA.toBase58()}`
         );
       }
       
@@ -199,48 +183,7 @@ export async function generateShieldedDrop(
       const stateTreeInfos = await rpc.getStateTreeInfos();
       const outputStateTreeInfo = selectStateTreeInfo(stateTreeInfos);
       
-      // Get token pool infos - this will throw if pool doesn't exist
-      let tokenPoolInfos;
-      try {
-        tokenPoolInfos = await getTokenPoolInfos(rpc, mint);
-      } catch (poolError) {
-        // Token pool doesn't exist - check if user has standard USDC
-        const standardUSDC = new PublicKey("EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G");
-        if (!mint.equals(standardUSDC)) {
-          // Try with standard USDC mint
-          try {
-            tokenPoolInfos = await getTokenPoolInfos(rpc, standardUSDC);
-            // Found pool for standard USDC - update mint
-            const standardATA = getAssociatedTokenAddressSync(
-              standardUSDC,
-              payerPubkey,
-              false,
-              TOKEN_PROGRAM_ID
-            );
-            const standardBalance = await connection.getTokenAccountBalance(standardATA).catch(() => null);
-            if (standardBalance && standardBalance.value.uiAmount && standardBalance.value.uiAmount > 0) {
-              // User has standard USDC and pool exists - use that instead
-              throw new Error(
-                `Compressed token pool not found for mint ${mintAddress}. ` +
-                `You have standard USDC (EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G) which has a pool. ` +
-                `Please set NEXT_PUBLIC_USDC_MAINNET_MINT=EPjFWdd5AufqSSqeM2qxdjQssd1kY9hSx6msvPoN9G to use standard USDC.`
-              );
-            }
-          } catch (standardError) {
-            // Standard USDC also doesn't have a pool
-          }
-        }
-        
-        // No pool found - provide helpful error
-        throw new Error(
-          `Compressed token pool not found for mint ${mintAddress}. ` +
-          `A token pool must be created before compressing tokens. ` +
-          `This is a one-time setup operation. ` +
-          `For now, compressed USDC drops require a pre-existing token pool. ` +
-          `SOL compression works without pools.`
-        );
-      }
-      
+      const tokenPoolInfos = await getTokenPoolInfos(rpc, mint);
       const tokenPoolInfo = selectTokenPoolInfo(tokenPoolInfos);
 
       compressIx = await CompressedTokenProgram.compress({
@@ -272,6 +215,10 @@ export async function generateShieldedDrop(
     // Wait for confirmation
     await connection.confirmTransaction(shieldSignature, "confirmed");
 
+    // Generate nullifier for this drop (prevents double-spending)
+    const nullifier = generateNullifier(recipientKeypair);
+    console.log(`[Nullifier] Generated nullifier for drop: ${nullifier.substring(0, 16)}...`);
+    
     // Build claim code: darkdrop:v2:cluster:asset:compressed:mode:payload
     const recipientSecret = recipientKeypair.secretKey;
     const baseSegments = [CODE_PREFIX, CODE_VERSION, "mainnet", asset.toLowerCase(), "compressed"];
@@ -579,6 +526,36 @@ export async function unshieldDrop(
   sendTransactionFn: (tx: Transaction) => Promise<string>
 ): Promise<string> {
   try {
+    // Generate nullifier for this drop
+    const nullifier = generateNullifier(recipientKeypair);
+    
+    // Check nullifier on-chain (if program is deployed)
+    const useOnChainNullifier = process.env.NEXT_PUBLIC_USE_ONCHAIN_NULLIFIER === "true";
+    
+    if (useOnChainNullifier) {
+      console.log(`[Nullifier On-Chain] Checking nullifier on-chain: ${nullifier.substring(0, 16)}...`);
+      const onChainCheck = await checkNullifierOnChain(
+        connection,
+        NULLIFIER_REGISTRY_PROGRAM_ID,
+        nullifier
+      );
+      
+      if (onChainCheck.exists && onChainCheck.isUsed) {
+        throw new Error("This drop has already been claimed. Nullifier already used (on-chain verified).");
+      }
+      
+      console.log(`[Nullifier On-Chain] Nullifier verified unused on-chain`);
+    } else {
+      // Fallback to client-side check
+      const registry = getNullifierRegistry();
+      const isUsed = await registry.isUsed(nullifier);
+      
+      if (isUsed) {
+        throw new Error("This drop has already been claimed. Nullifier already used.");
+      }
+      
+      console.log(`[Nullifier] Checking nullifier: ${nullifier.substring(0, 16)}... (not used)`);
+    }
     // Create RPC instance from connection
     const compressionApiEndpoint = process.env.NEXT_PUBLIC_LIGHT_COMPRESSION_API;
     const rpc = compressionApiEndpoint 
@@ -589,6 +566,8 @@ export async function unshieldDrop(
 
     let decompressIx: TransactionInstruction;
     let computeUnits: number;
+    let needsATACreation = false;
+    let claimerATA: PublicKey | null = null;
 
     if (asset === "SOL") {
       // SOL decompression: Use LightSystemProgram
@@ -645,12 +624,20 @@ export async function unshieldDrop(
       const mint = new PublicKey(mintAddress);
 
       // Get/create claimer's USDC ATA
-      const claimerATA = await getAssociatedTokenAddress(
+      claimerATA = await getAssociatedTokenAddress(
         mint,
         claimerPubkey,
         true,
         TOKEN_PROGRAM_ID
       );
+
+      // Check if claimer's ATA exists, if not we need to create it
+      const claimerATAInfo = await connection.getAccountInfo(claimerATA);
+      needsATACreation = !claimerATAInfo;
+      
+      if (needsATACreation) {
+        console.log("[Light Protocol] Claimer ATA doesn't exist, will create it");
+      }
 
       // Get compressed token accounts owned by recipient
       const compressedTokenAccounts = await rpc.getCompressedTokenAccountsByOwner(
@@ -699,10 +686,43 @@ export async function unshieldDrop(
 
     // Build transaction with compute budget
     const { blockhash } = await connection.getLatestBlockhash();
-    const tx = new Transaction().add(
-      ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnits }),
-      decompressIx
-    );
+    const tx = new Transaction();
+    
+    // Add compute budget (add extra for ATA creation if needed)
+    const finalComputeUnits = asset === "USDC" && needsATACreation ? computeUnits + 50_000 : computeUnits;
+    tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: finalComputeUnits }));
+    
+    // Create claimer's ATA if it doesn't exist (for USDC)
+    if (asset === "USDC" && needsATACreation && claimerATA) {
+      const mintAddress = getAssetMint("usdc", "mainnet");
+      if (mintAddress) {
+        const mint = new PublicKey(mintAddress);
+        tx.add(
+          createAssociatedTokenAccountInstruction(
+            payerPubkey,
+            claimerATA,
+            claimerPubkey,
+            mint,
+            TOKEN_PROGRAM_ID
+          )
+        );
+        console.log("[Light Protocol] Added ATA creation instruction");
+      }
+    }
+    
+    // Add on-chain nullifier verification if enabled
+    if (useOnChainNullifier) {
+      const markNullifierIx = createMarkNullifierUsedInstruction(
+        NULLIFIER_REGISTRY_PROGRAM_ID,
+        nullifier,
+        payerPubkey
+      );
+      tx.add(markNullifierIx);
+      console.log(`[Nullifier On-Chain] Added mark nullifier instruction to transaction`);
+    }
+    
+    // Add decompression instruction
+    tx.add(decompressIx);
     tx.recentBlockhash = blockhash;
     tx.feePayer = payerPubkey;
 
@@ -732,6 +752,17 @@ export async function unshieldDrop(
     
     // Wait for confirmation
     await connection.confirmTransaction(decompressSignature, "confirmed");
+    
+    // Mark nullifier as used after successful decompression
+    if (useOnChainNullifier) {
+      // On-chain marking already happened in the transaction
+      console.log(`[Nullifier On-Chain] Nullifier marked as used on-chain in transaction`);
+    } else {
+      // Fallback to client-side marking
+      const registry = getNullifierRegistry();
+      await registry.markUsed(nullifier, decompressSignature);
+      console.log(`[Nullifier] Marked nullifier as used after successful decompression`);
+    }
     
     return decompressSignature;
   } catch (error) {
