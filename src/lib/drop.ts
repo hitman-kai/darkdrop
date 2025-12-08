@@ -681,13 +681,8 @@ export async function unshieldDrop(
         recentValidityProof: proof.compressedProof,
       });
 
-      // Log the SDK's original instruction keys
-      console.log("[Light Protocol] SDK instruction keys:");
-      decompressIx.keys.forEach((k, i) => {
-        console.log(`  [${i}] ${k.pubkey.toBase58().slice(0, 8)}... writable=${k.isWritable} signer=${k.isSigner}`);
-      });
-      console.log("[Light Protocol] Instruction has", decompressIx.keys.length, "accounts");
-      console.log("[Light Protocol] Writable accounts:", decompressIx.keys.filter(k => k.isWritable).map(k => k.pubkey.toBase58().slice(0, 8) + '...'));
+      // Log instruction info
+      console.log("[Light Protocol] Decompress instruction ready with", decompressIx.keys.length, "accounts");
 
       computeUnits = 350_000;
     }
@@ -760,9 +755,7 @@ export async function unshieldDrop(
     });
     requiredSigners.add(payerPubkey.toBase58()); // Fee payer always signs
     
-    console.log("[Light Protocol] Required signers:", Array.from(requiredSigners));
-    console.log("[Light Protocol] Recipient pubkey:", recipientKeypair.publicKey.toBase58());
-    console.log("[Light Protocol] Payer pubkey:", payerPubkey.toBase58());
+    console.log("[Light Protocol] Required signers:", requiredSigners.size);
 
     // Partially sign with recipient keypair if it's a required signer (it should be now since we set it as authority)
     if (requiredSigners.has(recipientKeypair.publicKey.toBase58())) {
@@ -772,16 +765,8 @@ export async function unshieldDrop(
       console.warn("[Light Protocol] WARNING: Recipient keypair is not a required signer, but it should be!");
     }
 
-    // Log the transaction instructions before sending
-    console.log("[Light Protocol] Transaction has", tx.instructions.length, "instructions");
-    const decompressIxInTx = tx.instructions[tx.instructions.length - 1]; // The decompress ix is the last one
-    console.log("[Light Protocol] Decompress instruction in tx has", decompressIxInTx.keys.length, "keys");
-    console.log("[Light Protocol] All writable keys in decompress ix:");
-    decompressIxInTx.keys.forEach((k, i) => {
-      if (k.isWritable) {
-        console.log(`  [${i}] ${k.pubkey.toBase58().slice(0, 8)}... writable=${k.isWritable}`);
-      }
-    });
+    // Log transaction info
+    console.log("[Light Protocol] Transaction ready with", tx.instructions.length, "instructions");
 
     // Send transaction - wallet adapter will add its signature
     const decompressSignature = await sendTransactionFn(tx);
