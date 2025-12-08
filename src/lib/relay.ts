@@ -128,73 +128,16 @@ async function executeRelayedSolClaim(
   await connection.confirmTransaction(signature, "confirmed");
   console.log("[Relayer] Transaction confirmed:", signature);
   
-  // Immediately sweep the fee to relayer in a second transaction
+  // Store fee for manual sweep (SOL state tree updates are slow, auto-sweep unreliable)
   if (feeLamports > BigInt(0)) {
-    try {
-      console.log("[Relayer] Waiting for state tree to update...");
-      
-      // Wait for state tree to sync after TX1 (2 seconds)
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      console.log("[Relayer] Sweeping fee to relayer wallet...");
-      
-      // Get the new compressed account (the change/fee)
-      const feeAccounts = await rpc.getCompressedAccountsByOwner(recipientKeypair.publicKey);
-      
-      if (feeAccounts.items && feeAccounts.items.length > 0) {
-        const feeTotal = feeAccounts.items.reduce(
-          (sum, acc) => sum + BigInt(acc.lamports || 0),
-          BigInt(0)
-        );
-        
-        if (feeTotal > BigInt(0)) {
-          // Get new validity proof for fee accounts
-          const feeProof = await rpc.getValidityProof(
-            feeAccounts.items.map(acc => bn(acc.hash))
-          );
-          
-          // Decompress fee to relayer
-          const sweepIx = await LightSystemProgram.decompress({
-            payer: relayerKeypair.publicKey,
-            inputCompressedAccounts: feeAccounts.items,
-            toAddress: relayerKeypair.publicKey,
-            lamports: feeTotal,
-            recentValidityProof: feeProof.compressedProof,
-            recentInputStateRootIndices: feeProof.rootIndices,
-          });
-          
-          sweepIx.keys[1] = {
-            pubkey: recipientKeypair.publicKey,
-            isSigner: true,
-            isWritable: false,
-          };
-          
-          const { blockhash: sweepBlockhash } = await connection.getLatestBlockhash();
-          const sweepTx = new Transaction();
-          sweepTx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 500_000 }));
-          sweepTx.add(sweepIx);
-          sweepTx.recentBlockhash = sweepBlockhash;
-          sweepTx.feePayer = relayerKeypair.publicKey;
-          sweepTx.sign(relayerKeypair, recipientKeypair);
-          
-          const sweepSig = await connection.sendRawTransaction(sweepTx.serialize());
-          await connection.confirmTransaction(sweepSig, "confirmed");
-          
-          console.log("[Relayer] Fee swept to relayer:", sweepSig);
-          console.log("[Relayer] Fee collected:", feeTotal.toString(), "lamports");
-        }
-      }
-    } catch (sweepError) {
-      // If sweep fails, store for later collection
-      console.error("[Relayer] Auto-sweep failed, storing for later:", sweepError);
-      storeFeeRecord(
-        recipientKeypair.secretKey,
-        recipientKeypair.publicKey.toBase58(),
-        "SOL",
-        feeLamports,
-        signature
-      );
-    }
+    storeFeeRecord(
+      recipientKeypair.secretKey,
+      recipientKeypair.publicKey.toBase58(),
+      "SOL",
+      feeLamports,
+      signature
+    );
+    console.log("[Relayer] SOL fee stored for manual sweep:", feeLamports.toString(), "lamports");
   }
   
   return {

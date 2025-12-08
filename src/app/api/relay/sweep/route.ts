@@ -6,9 +6,21 @@ import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, TOK
 import { getUnsweptFees, markFeesSwept, getFeeStats } from "@/lib/fee-storage";
 import bs58 from "bs58";
 
-// Sweep all accumulated fees to relayer wallet
+// Sweep all accumulated fees to relayer wallet (protected endpoint)
 export async function POST(req: NextRequest) {
   try {
+    // Verify API key - only relayer owner can sweep
+    const apiKey = req.headers.get("x-api-key");
+    const sweepApiKey = process.env.SWEEP_API_KEY;
+    
+    if (!sweepApiKey) {
+      return NextResponse.json({ error: "SWEEP_API_KEY not configured" }, { status: 500 });
+    }
+    
+    if (apiKey !== sweepApiKey) {
+      return NextResponse.json({ error: "Unauthorized - invalid API key" }, { status: 401 });
+    }
+    
     // Load relayer keypair (supports both base58 and JSON array formats)
     const relayerPrivateKey = process.env.RELAYER_PRIVATE_KEY;
     if (!relayerPrivateKey) {
