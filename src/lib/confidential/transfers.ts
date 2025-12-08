@@ -175,7 +175,7 @@ export async function planConfidentialAccount({
     return {
       required: false,
       instructions: [],
-      notes: ["Missing mint configuration for this asset. Set NEXT_PUBLIC_CUSDC_MAINNET_MINT."],
+      notes: ["Missing mint configuration for this asset. Set NEXT_PUBLIC_USDC_MAINNET_MINT."],
     };
   }
 
