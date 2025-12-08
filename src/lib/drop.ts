@@ -807,9 +807,24 @@ export async function unshieldDrop(
     }
     
     return decompressSignature;
-  } catch (error) {
+  } catch (error: any) {
     console.error("[Light Protocol] Decompress failed:", error);
-    throw new Error(`Light Protocol decompression failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+    
+    // Try to extract more details from the error
+    let errorMessage = "Unknown error";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (error?.logs) {
+      console.error("[Light Protocol] Transaction logs:", error.logs);
+      errorMessage = error.logs.join('\n');
+    } else if (error?.InstructionError) {
+      console.error("[Light Protocol] Instruction error:", JSON.stringify(error.InstructionError));
+      errorMessage = `Instruction ${error.InstructionError[0]} failed: ${JSON.stringify(error.InstructionError[1])}`;
+    } else if (typeof error === 'object') {
+      errorMessage = JSON.stringify(error);
+    }
+    
+    throw new Error(`Light Protocol decompression failed: ${errorMessage}`);
   }
 }
 
