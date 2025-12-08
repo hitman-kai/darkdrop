@@ -681,20 +681,27 @@ export async function unshieldDrop(
         recentValidityProof: proof.compressedProof,
       });
 
-      // Fix: Ensure all state tree, queue, and token pool accounts are marked as writable
-      // The SDK sometimes doesn't set this correctly
+      // Fix: Ensure all necessary accounts are marked as writable
+      // The SDK sometimes doesn't set this correctly for decompression
+      // We need to mark: state trees, queues, token pools, and destination token accounts
+      
       const writableAddresses = new Set<string>();
       
-      // Add state tree and queue accounts
+      // Add state tree and queue accounts from input compressed accounts
       inputAccounts.forEach(account => {
         writableAddresses.add(account.compressedAccount.treeInfo.tree.toBase58());
         writableAddresses.add(account.compressedAccount.treeInfo.queue.toBase58());
       });
       
-      // Add token pool addresses
-      selectedTokenPoolInfos.forEach(poolInfo => {
-        writableAddresses.add(poolInfo.tokenPool.toBase58());
-      });
+      // Mark the token pool PDA and destination token account as writable
+      // These are typically at specific indices in the decompress instruction
+      // Index 9: Token Pool PDA, Index 10: Destination Token Account
+      if (decompressIx.keys.length > 9) {
+        writableAddresses.add(decompressIx.keys[9].pubkey.toBase58()); // Token Pool PDA
+      }
+      if (decompressIx.keys.length > 10) {
+        writableAddresses.add(decompressIx.keys[10].pubkey.toBase58()); // Destination Token Account
+      }
       
       decompressIx.keys = decompressIx.keys.map(key => {
         if (writableAddresses.has(key.pubkey.toBase58())) {
