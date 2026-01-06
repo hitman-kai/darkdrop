@@ -13,17 +13,21 @@ export const CLUSTER_LABELS: Record<ClusterType, string> = {
 export const DEFAULT_CLUSTER: ClusterType = "mainnet";
 export const DEFAULT_ASSET: AssetSymbol = "sol";
 
-const MAINNET_RPC = process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC;
+// Helius RPC with working API key - fallback if env var not set
+const HELIUS_RPC_FALLBACK = "https://mainnet.helius-rpc.com/?api-key=da8de8e3-afd3-457e-9820-a62102ca3c9b";
+const MAINNET_RPC = process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC || HELIUS_RPC_FALLBACK;
 
 export const RPC_ENDPOINTS: Record<ClusterType, string> = {
-  mainnet: MAINNET_RPC || clusterApiUrl("mainnet-beta"),
+  mainnet: MAINNET_RPC,
 };
 
+// USDC mint address on mainnet
+const USDC_MAINNET_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const USDC_MINTS: Record<ClusterType, string> = {
   mainnet:
     process.env.NEXT_PUBLIC_USDC_MAINNET_MINT ??
     process.env.NEXT_PUBLIC_CUSDC_MAINNET_MINT ??
-    "",
+    USDC_MAINNET_MINT,
 };
 
 type AssetMeta =
