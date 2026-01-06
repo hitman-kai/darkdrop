@@ -9,9 +9,9 @@ interface TgAssetSelectProps {
   onChange: (asset: Asset) => void;
 }
 
-const ASSETS: { id: Asset; icon: string; label: string }[] = [
-  { id: 'SOL', icon: '◎', label: 'SOL' },
-  { id: 'USDC', icon: '💵', label: 'USDC' },
+const ASSETS: { id: Asset; label: string }[] = [
+  { id: 'SOL', label: 'SOL' },
+  { id: 'USDC', label: 'USDC' },
 ];
 
 export function TgAssetSelect({ value, onChange }: TgAssetSelectProps) {
@@ -30,11 +30,9 @@ export function TgAssetSelect({ value, onChange }: TgAssetSelectProps) {
           className={`tg-select-option ${value === asset.id ? 'active' : ''}`}
           onClick={() => handleSelect(asset.id)}
         >
-          <div className="tg-select-option-icon">{asset.icon}</div>
           <div className="tg-select-option-label">{asset.label}</div>
         </button>
       ))}
     </div>
   );
 }
-

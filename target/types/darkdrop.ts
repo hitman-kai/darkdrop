@@ -1,0 +1,1265 @@
+export type Darkdrop = {
+  "version": "0.1.0",
+  "name": "darkdrop",
+  "instructions": [
+    {
+      "name": "initialize",
+      "accounts": [
+        {
+          "name": "config",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "createDrop",
+      "accounts": [
+        {
+          "name": "drop",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "nullifierAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "config",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rateLimitAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "recipient",
+          "type": "publicKey"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "assetType",
+          "type": "u8"
+        },
+        {
+          "name": "expiresAt",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "claimDrop",
+      "accounts": [
+        {
+          "name": "drop",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "nullifierAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "claimer",
+          "isMut": true,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "proposeAuthority",
+      "accounts": [
+        {
+          "name": "config",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "newAuthority",
+          "type": "publicKey"
+        }
+      ]
+    },
+    {
+      "name": "cancelAuthorityProposal",
+      "accounts": [
+        {
+          "name": "config",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "acceptAuthority",
+      "accounts": [
+        {
+          "name": "config",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "pendingAuthority",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "updateAuthorityDelay",
+      "accounts": [
+        {
+          "name": "config",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "newDelaySeconds",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "expireDrop",
+      "accounts": [
+        {
+          "name": "drop",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "nullifierAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "config",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "rentCollector",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "publicKey"
+          },
+          {
+            "name": "isInitialized",
+            "type": "bool"
+          },
+          {
+            "name": "pendingAuthority",
+            "type": "publicKey"
+          },
+          {
+            "name": "pendingAuthoritySetAt",
+            "type": "i64"
+          },
+          {
+            "name": "authorityDelaySeconds",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "dropAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "nullifier",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "recipient",
+            "type": "publicKey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "assetType",
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": "DropStatus"
+            }
+          },
+          {
+            "name": "expiresAt",
+            "type": "i64"
+          },
+          {
+            "name": "createdAt",
+            "type": "i64"
+          },
+          {
+            "name": "claimedAt",
+            "type": "i64"
+          },
+          {
+            "name": "claimer",
+            "type": "publicKey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "nullifierAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "nullifier",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "isUsed",
+            "type": "bool"
+          },
+          {
+            "name": "claimer",
+            "type": "publicKey"
+          },
+          {
+            "name": "usedAt",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "rateLimitAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "lastDropAt",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "DropStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Claimed"
+          },
+          {
+            "name": "Expired"
+          }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "DropCreated",
+      "fields": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          },
+          "index": false
+        },
+        {
+          "name": "recipient",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "assetType",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "expiresAt",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "payer",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "DropClaimed",
+      "fields": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          },
+          "index": false
+        },
+        {
+          "name": "claimer",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "claimedAt",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "DropExpired",
+      "fields": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          },
+          "index": false
+        },
+        {
+          "name": "recipient",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "expiresAt",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "AuthorityProposed",
+      "fields": [
+        {
+          "name": "currentAuthority",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "pendingAuthority",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "delaySeconds",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "AuthorityProposalCancelled",
+      "fields": [
+        {
+          "name": "authority",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "cancelledAuthority",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "AuthorityAccepted",
+      "fields": [
+        {
+          "name": "previousAuthority",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "newAuthority",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "AuthorityDelayUpdated",
+      "fields": [
+        {
+          "name": "authority",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "newDelaySeconds",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NullifierAlreadyUsed",
+      "msg": "This nullifier has already been used"
+    },
+    {
+      "code": 6001,
+      "name": "DropNotActive",
+      "msg": "Drop is not active"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidNullifier",
+      "msg": "Invalid nullifier"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidAmount",
+      "msg": "Amount must be greater than zero"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidAssetType",
+      "msg": "Asset type is not supported"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidRecipient",
+      "msg": "Recipient must differ from payer"
+    },
+    {
+      "code": 6006,
+      "name": "InvalidExpiration",
+      "msg": "Expiration timestamp is invalid"
+    },
+    {
+      "code": 6007,
+      "name": "ConfigNotInitialized",
+      "msg": "Program config is not initialized"
+    },
+    {
+      "code": 6008,
+      "name": "UnauthorizedCreator",
+      "msg": "Caller is not authorized to create drops"
+    },
+    {
+      "code": 6009,
+      "name": "RateLimitExceeded",
+      "msg": "Create drop rate limit exceeded"
+    },
+    {
+      "code": 6010,
+      "name": "DropExpired",
+      "msg": "Drop has expired"
+    },
+    {
+      "code": 6011,
+      "name": "InvalidAuthority",
+      "msg": "Authority cannot be the default public key"
+    },
+    {
+      "code": 6012,
+      "name": "PendingAuthorityExists",
+      "msg": "A pending authority already exists"
+    },
+    {
+      "code": 6013,
+      "name": "NoPendingAuthority",
+      "msg": "No pending authority to process"
+    },
+    {
+      "code": 6014,
+      "name": "AuthorityDelayNotElapsed",
+      "msg": "Authority delay has not elapsed"
+    },
+    {
+      "code": 6015,
+      "name": "InvalidAuthorityDelay",
+      "msg": "Authority delay is out of bounds"
+    },
+    {
+      "code": 6016,
+      "name": "DropNotExpired",
+      "msg": "Drop has not yet expired"
+    }
+  ]
+};
+
+export const IDL: Darkdrop = {
+  "version": "0.1.0",
+  "name": "darkdrop",
+  "instructions": [
+    {
+      "name": "initialize",
+      "accounts": [
+        {
+          "name": "config",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "createDrop",
+      "accounts": [
+        {
+          "name": "drop",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "nullifierAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "config",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rateLimitAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "recipient",
+          "type": "publicKey"
+        },
+        {
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "assetType",
+          "type": "u8"
+        },
+        {
+          "name": "expiresAt",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "claimDrop",
+      "accounts": [
+        {
+          "name": "drop",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "nullifierAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "claimer",
+          "isMut": true,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "proposeAuthority",
+      "accounts": [
+        {
+          "name": "config",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "newAuthority",
+          "type": "publicKey"
+        }
+      ]
+    },
+    {
+      "name": "cancelAuthorityProposal",
+      "accounts": [
+        {
+          "name": "config",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "acceptAuthority",
+      "accounts": [
+        {
+          "name": "config",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "pendingAuthority",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "updateAuthorityDelay",
+      "accounts": [
+        {
+          "name": "config",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": [
+        {
+          "name": "newDelaySeconds",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "expireDrop",
+      "accounts": [
+        {
+          "name": "drop",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "nullifierAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "config",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "authority",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "rentCollector",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "publicKey"
+          },
+          {
+            "name": "isInitialized",
+            "type": "bool"
+          },
+          {
+            "name": "pendingAuthority",
+            "type": "publicKey"
+          },
+          {
+            "name": "pendingAuthoritySetAt",
+            "type": "i64"
+          },
+          {
+            "name": "authorityDelaySeconds",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "dropAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "nullifier",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "recipient",
+            "type": "publicKey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "assetType",
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": "DropStatus"
+            }
+          },
+          {
+            "name": "expiresAt",
+            "type": "i64"
+          },
+          {
+            "name": "createdAt",
+            "type": "i64"
+          },
+          {
+            "name": "claimedAt",
+            "type": "i64"
+          },
+          {
+            "name": "claimer",
+            "type": "publicKey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "nullifierAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "nullifier",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "isUsed",
+            "type": "bool"
+          },
+          {
+            "name": "claimer",
+            "type": "publicKey"
+          },
+          {
+            "name": "usedAt",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "rateLimitAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "lastDropAt",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "DropStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Claimed"
+          },
+          {
+            "name": "Expired"
+          }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "DropCreated",
+      "fields": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          },
+          "index": false
+        },
+        {
+          "name": "recipient",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "amount",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "assetType",
+          "type": "u8",
+          "index": false
+        },
+        {
+          "name": "expiresAt",
+          "type": "i64",
+          "index": false
+        },
+        {
+          "name": "payer",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "DropClaimed",
+      "fields": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          },
+          "index": false
+        },
+        {
+          "name": "claimer",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "claimedAt",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "DropExpired",
+      "fields": [
+        {
+          "name": "nullifier",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          },
+          "index": false
+        },
+        {
+          "name": "recipient",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "expiresAt",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "AuthorityProposed",
+      "fields": [
+        {
+          "name": "currentAuthority",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "pendingAuthority",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "delaySeconds",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "AuthorityProposalCancelled",
+      "fields": [
+        {
+          "name": "authority",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "cancelledAuthority",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "AuthorityAccepted",
+      "fields": [
+        {
+          "name": "previousAuthority",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "newAuthority",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "AuthorityDelayUpdated",
+      "fields": [
+        {
+          "name": "authority",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "newDelaySeconds",
+          "type": "i64",
+          "index": false
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NullifierAlreadyUsed",
+      "msg": "This nullifier has already been used"
+    },
+    {
+      "code": 6001,
+      "name": "DropNotActive",
+      "msg": "Drop is not active"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidNullifier",
+      "msg": "Invalid nullifier"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidAmount",
+      "msg": "Amount must be greater than zero"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidAssetType",
+      "msg": "Asset type is not supported"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidRecipient",
+      "msg": "Recipient must differ from payer"
+    },
+    {
+      "code": 6006,
+      "name": "InvalidExpiration",
+      "msg": "Expiration timestamp is invalid"
+    },
+    {
+      "code": 6007,
+      "name": "ConfigNotInitialized",
+      "msg": "Program config is not initialized"
+    },
+    {
+      "code": 6008,
+      "name": "UnauthorizedCreator",
+      "msg": "Caller is not authorized to create drops"
+    },
+    {
+      "code": 6009,
+      "name": "RateLimitExceeded",
+      "msg": "Create drop rate limit exceeded"
+    },
+    {
+      "code": 6010,
+      "name": "DropExpired",
+      "msg": "Drop has expired"
+    },
+    {
+      "code": 6011,
+      "name": "InvalidAuthority",
+      "msg": "Authority cannot be the default public key"
+    },
+    {
+      "code": 6012,
+      "name": "PendingAuthorityExists",
+      "msg": "A pending authority already exists"
+    },
+    {
+      "code": 6013,
+      "name": "NoPendingAuthority",
+      "msg": "No pending authority to process"
+    },
+    {
+      "code": 6014,
+      "name": "AuthorityDelayNotElapsed",
+      "msg": "Authority delay has not elapsed"
+    },
+    {
+      "code": 6015,
+      "name": "InvalidAuthorityDelay",
+      "msg": "Authority delay is out of bounds"
+    },
+    {
+      "code": 6016,
+      "name": "DropNotExpired",
+      "msg": "Drop has not yet expired"
+    }
+  ]
+};

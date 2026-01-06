@@ -7,7 +7,7 @@ import { useTelegram, TgHeader, TgButton, TgInput, TgCard } from '../components'
 function ClaimContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { showBackButton, hideBackButton, haptic, alert, isTelegram } = useTelegram();
+  const { showBackButton, hideBackButton, haptic, alert } = useTelegram();
 
   const [claimCode, setClaimCode] = useState('');
   const [destinationAddress, setDestinationAddress] = useState('');
@@ -41,21 +41,19 @@ function ClaimContent() {
   };
 
   const validateSolanaAddress = (address: string): boolean => {
-    // Basic Solana address validation (32-44 chars, base58)
     return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
   };
 
   const handleClaim = async () => {
-    // Validate inputs
     if (!validateClaimCode(claimCode)) {
       haptic('error');
-      setError('Invalid claim code format');
+      setError('INVALID CLAIM CODE FORMAT');
       return;
     }
 
     if (!validateSolanaAddress(destinationAddress)) {
       haptic('error');
-      setError('Invalid Solana wallet address');
+      setError('INVALID SOLANA WALLET ADDRESS');
       return;
     }
 
@@ -64,7 +62,6 @@ function ClaimContent() {
     haptic('medium');
 
     try {
-      // Call the relayer API to claim
       const response = await fetch('/api/relay/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -81,14 +78,14 @@ function ClaimContent() {
       }
 
       setClaimedAmount(data.amount || '?');
-      setClaimedAsset(data.asset || 'tokens');
+      setClaimedAsset(data.asset || 'TOKENS');
       setTxSignature(data.signature || '');
       setStep('success');
       haptic('success');
 
     } catch (err) {
       console.error('Claim error:', err);
-      setError(err instanceof Error ? err.message : 'Claim failed');
+      setError(err instanceof Error ? err.message.toUpperCase() : 'CLAIM FAILED');
       setStep('error');
       haptic('error');
     }
@@ -107,18 +104,8 @@ function ClaimContent() {
         <TgHeader title="CLAIM DROP" subtitle="Enter code to receive funds" />
 
         <div className="tg-container">
-          {/* Claim Code Input */}
           <div>
-            <label style={{ 
-              display: 'block', 
-              fontSize: '12px', 
-              color: 'var(--tg-hint)',
-              marginBottom: '8px',
-              textTransform: 'uppercase',
-              letterSpacing: '1px'
-            }}>
-              Claim Code
-            </label>
+            <label className="tg-label">CLAIM CODE</label>
             <TgInput
               value={claimCode}
               onChange={setClaimCode}
@@ -126,22 +113,12 @@ function ClaimContent() {
             />
           </div>
 
-          {/* Destination Address Input */}
           <div className="tg-mt-16">
-            <label style={{ 
-              display: 'block', 
-              fontSize: '12px', 
-              color: 'var(--tg-hint)',
-              marginBottom: '8px',
-              textTransform: 'uppercase',
-              letterSpacing: '1px'
-            }}>
-              Your Wallet Address
-            </label>
+            <label className="tg-label">YOUR WALLET ADDRESS</label>
             <TgInput
               value={destinationAddress}
               onChange={setDestinationAddress}
-              placeholder="Your Solana address..."
+              placeholder="Your Solana address"
             />
           </div>
 
@@ -156,29 +133,20 @@ function ClaimContent() {
               onClick={handleClaim} 
               disabled={!claimCode || !destinationAddress}
             >
-              🎁 Claim via Relayer
+              CLAIM VIA RELAYER
             </TgButton>
           </div>
 
           <TgCard className="tg-mt-24">
-            <div className="tg-list">
+            <div className="tg-list" style={{ border: 'none', background: 'transparent' }}>
               <div className="tg-list-item" style={{ background: 'transparent', padding: '8px 0' }}>
-                <div className="tg-list-item-left">
-                  <span className="tg-list-item-icon">⛽</span>
-                  <span className="tg-list-item-title">No gas needed</span>
-                </div>
+                <span className="tg-list-item-title">NO GAS NEEDED</span>
               </div>
               <div className="tg-list-item" style={{ background: 'transparent', padding: '8px 0' }}>
-                <div className="tg-list-item-left">
-                  <span className="tg-list-item-icon">💰</span>
-                  <span className="tg-list-item-title">1% relayer fee</span>
-                </div>
+                <span className="tg-list-item-title">1% RELAYER FEE</span>
               </div>
               <div className="tg-list-item" style={{ background: 'transparent', padding: '8px 0' }}>
-                <div className="tg-list-item-left">
-                  <span className="tg-list-item-icon">🔐</span>
-                  <span className="tg-list-item-title">No wallet connection</span>
-                </div>
+                <span className="tg-list-item-title">NO WALLET CONNECTION</span>
               </div>
             </div>
           </TgCard>
@@ -191,19 +159,19 @@ function ClaimContent() {
   if (step === 'claiming') {
     return (
       <div className="tg-fade-in">
-        <TgHeader title="CLAIMING..." subtitle="Please wait" />
+        <TgHeader title="CLAIMING" subtitle="Please wait" />
 
         <div className="tg-container" style={{ textAlign: 'center', paddingTop: '48px' }}>
           <div className="tg-spinner" style={{ 
-            width: '48px', 
-            height: '48px',
+            width: '32px', 
+            height: '32px',
             margin: '0 auto',
-            borderWidth: '3px'
+            borderWidth: '2px'
           }} />
-          <p className="tg-mt-24" style={{ color: 'var(--tg-hint)' }}>
-            Relayer is processing your claim...
+          <p className="tg-mt-24" style={{ color: 'var(--tg-muted)', fontSize: '11px', letterSpacing: '0.1em' }}>
+            RELAYER IS PROCESSING YOUR CLAIM
           </p>
-          <p className="tg-mt-8" style={{ color: 'var(--tg-hint)', fontSize: '12px' }}>
+          <p className="tg-mt-8" style={{ color: 'var(--tg-muted)', fontSize: '10px' }}>
             This may take a few seconds
           </p>
         </div>
@@ -215,11 +183,11 @@ function ClaimContent() {
   if (step === 'success') {
     return (
       <div className="tg-fade-in">
-        <TgHeader title="CLAIMED!" subtitle="Funds are on the way" />
+        <TgHeader title="CLAIMED" subtitle="Funds are on the way" />
 
         <div className="tg-container">
           <div className="tg-status tg-status-success tg-mb-16">
-            ✓ Successfully claimed!
+            SUCCESSFULLY CLAIMED
           </div>
 
           <div className="tg-amount">
@@ -227,7 +195,7 @@ function ClaimContent() {
               {claimedAmount} {claimedAsset}
             </div>
             <div className="tg-amount-label">
-              Sent to your wallet
+              SENT TO YOUR WALLET
             </div>
           </div>
 
@@ -237,14 +205,14 @@ function ClaimContent() {
                 Transaction confirmed on Solana
               </p>
               <TgButton variant="secondary" onClick={handleViewTransaction}>
-                View on Solscan →
+                VIEW ON SOLSCAN
               </TgButton>
             </TgCard>
           )}
 
           <div className="tg-mt-24">
             <TgButton onClick={() => router.push('/tg')}>
-              Done
+              DONE
             </TgButton>
           </div>
         </div>
@@ -259,29 +227,18 @@ function ClaimContent() {
 
       <div className="tg-container">
         <div className="tg-status tg-status-error tg-mb-16">
-          ✕ {error || 'Unknown error'}
+          {error || 'UNKNOWN ERROR'}
         </div>
 
         <TgCard>
           <p className="tg-card-desc">
-            This could happen if:
+            This could happen if the drop was already claimed, the claim code is invalid, the burner wallet is empty, or there are network issues.
           </p>
-          <ul style={{ 
-            margin: '12px 0 0 0', 
-            paddingLeft: '20px',
-            color: 'var(--tg-hint)',
-            fontSize: '13px'
-          }}>
-            <li>The drop was already claimed</li>
-            <li>The claim code is invalid</li>
-            <li>The burner wallet is empty</li>
-            <li>Network issues</li>
-          </ul>
         </TgCard>
 
         <div className="tg-mt-24">
           <TgButton onClick={() => setStep('input')}>
-            Try Again
+            TRY AGAIN
           </TgButton>
         </div>
 
@@ -290,7 +247,7 @@ function ClaimContent() {
           className="tg-mt-12"
           onClick={() => router.push('/tg')}
         >
-          Go Home
+          GO HOME
         </TgButton>
       </div>
     </div>
@@ -306,11 +263,10 @@ export default function TelegramClaimPage() {
         justifyContent: 'center',
         minHeight: '100vh'
       }}>
-        <div className="tg-spinner" />
+        <div className="tg-spinner" style={{ width: '24px', height: '24px' }} />
       </div>
     }>
       <ClaimContent />
     </Suspense>
   );
 }
-

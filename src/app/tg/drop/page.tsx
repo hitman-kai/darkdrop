@@ -13,7 +13,7 @@ function encodeClaimCode(keypair: Keypair): string {
 
 export default function TelegramDropPage() {
   const router = useRouter();
-  const { showBackButton, hideBackButton, showMainButton, hideMainButton, haptic, alert, isTelegram, webApp } = useTelegram();
+  const { showBackButton, hideBackButton, showMainButton, hideMainButton, haptic, alert, webApp } = useTelegram();
 
   const [asset, setAsset] = useState<Asset>('SOL');
   const [amount, setAmount] = useState('');
@@ -38,9 +38,9 @@ export default function TelegramDropPage() {
   // Main button for confirm step
   useEffect(() => {
     if (step === 'confirm') {
-      showMainButton('Confirm & Send', handleConfirmSend);
+      showMainButton('CONFIRM & SEND', handleConfirmSend);
     } else if (step === 'success') {
-      showMainButton('Share via Telegram', handleShare);
+      showMainButton('SHARE VIA TELEGRAM', handleShare);
     } else {
       hideMainButton();
     }
@@ -52,19 +52,19 @@ export default function TelegramDropPage() {
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
       haptic('error');
-      setError('Please enter a valid amount');
+      setError('ENTER A VALID AMOUNT');
       return;
     }
 
     if (asset === 'SOL' && numAmount < 0.001) {
       haptic('error');
-      setError('Minimum 0.001 SOL');
+      setError('MINIMUM 0.001 SOL');
       return;
     }
 
     if (asset === 'USDC' && numAmount < 0.01) {
       haptic('error');
-      setError('Minimum 0.01 USDC');
+      setError('MINIMUM 0.01 USDC');
       return;
     }
 
@@ -78,30 +78,17 @@ export default function TelegramDropPage() {
     haptic('medium');
 
     try {
-      // Generate burner keypair
       const burner = Keypair.generate();
       const code = encodeClaimCode(burner);
 
       setBurnerAddress(burner.publicKey.toBase58());
       setClaimCode(code);
-
-      // For now, show success with the claim code
-      // In production, this would trigger wallet signing
-      // The user needs to connect their wallet and sign the transaction
-      
-      // Since we're in Telegram Mini App and can't directly access wallet adapters,
-      // we'll need to either:
-      // 1. Redirect to web app for wallet connection
-      // 2. Use a custodial solution
-      // 3. Use Telegram's TON wallet integration (future)
-      
-      // For now, show the burner address for manual transfer
       setStep('success');
       haptic('success');
 
     } catch (err) {
       console.error('Drop creation error:', err);
-      setError('Failed to create drop');
+      setError('FAILED TO CREATE DROP');
       setStep('confirm');
       haptic('error');
     }
@@ -110,23 +97,25 @@ export default function TelegramDropPage() {
   const handleShare = () => {
     haptic('light');
     
-    const shareText = `🌑 DarkDrop\n\nYou received ${amount} ${asset}!\n\nClaim here: https://darkdrop.app/tg/claim?code=${encodeURIComponent(claimCode)}`;
-    
     if (webApp) {
-      // Open Telegram share dialog
-      const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(`https://darkdrop.app/tg/claim?code=${claimCode}`)}&text=${encodeURIComponent(`🌑 You received ${amount} ${asset} via DarkDrop!`)}`;
+      const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(`https://darkdrop.app/tg/claim?code=${claimCode}`)}&text=${encodeURIComponent(`You received ${amount} ${asset} via DarkDrop`)}`;
       webApp.openTelegramLink(telegramUrl);
     } else {
-      // Fallback to clipboard
       navigator.clipboard.writeText(claimCode);
-      alert('Claim code copied!');
+      alert('Claim code copied');
     }
   };
 
   const handleCopyCode = () => {
     haptic('light');
     navigator.clipboard.writeText(claimCode);
-    alert('Claim code copied!');
+    alert('Claim code copied');
+  };
+
+  const handleCopyAddress = () => {
+    haptic('light');
+    navigator.clipboard.writeText(burnerAddress);
+    alert('Address copied');
   };
 
   // Input step
@@ -139,21 +128,12 @@ export default function TelegramDropPage() {
           <TgAssetSelect value={asset} onChange={setAsset} />
 
           <div className="tg-mt-16">
-            <label style={{ 
-              display: 'block', 
-              fontSize: '12px', 
-              color: 'var(--tg-hint)',
-              marginBottom: '8px',
-              textTransform: 'uppercase',
-              letterSpacing: '1px'
-            }}>
-              Amount
-            </label>
+            <label className="tg-label">AMOUNT</label>
             <TgInput
               type="number"
               value={amount}
               onChange={setAmount}
-              placeholder={asset === 'SOL' ? '0.00 SOL' : '0.00 USDC'}
+              placeholder={asset === 'SOL' ? '0.00' : '0.00'}
             />
           </div>
 
@@ -165,13 +145,13 @@ export default function TelegramDropPage() {
 
           <div className="tg-mt-24">
             <TgButton onClick={handleContinue} disabled={!amount}>
-              Continue
+              CONTINUE
             </TgButton>
           </div>
 
           <TgCard className="tg-mt-24">
             <p className="tg-card-desc">
-              💡 Creates a burner wallet. Send funds there, then share the claim code.
+              Creates a burner wallet. Send funds there, then share the claim code.
             </p>
           </TgCard>
         </div>
@@ -191,30 +171,24 @@ export default function TelegramDropPage() {
               {amount} {asset}
             </div>
             <div className="tg-amount-label">
-              Will be sent to burner wallet
+              WILL BE SENT TO BURNER WALLET
             </div>
           </div>
 
           <div className="tg-list">
             <div className="tg-list-item">
-              <div className="tg-list-item-left">
-                <span className="tg-list-item-icon">🔐</span>
-                <span className="tg-list-item-title">ZK Compressed</span>
-              </div>
-              <span className="tg-list-item-right">Yes</span>
+              <span className="tg-list-item-title">ZK COMPRESSED</span>
+              <span className="tg-list-item-right">YES</span>
             </div>
             <div className="tg-list-item">
-              <div className="tg-list-item-left">
-                <span className="tg-list-item-icon">⛽</span>
-                <span className="tg-list-item-title">Recipient pays gas</span>
-              </div>
-              <span className="tg-list-item-right">No (Relayer)</span>
+              <span className="tg-list-item-title">RECIPIENT PAYS GAS</span>
+              <span className="tg-list-item-right">NO</span>
             </div>
           </div>
 
           <div className="tg-mt-24">
             <TgButton onClick={handleConfirmSend}>
-              Create Drop
+              CREATE DROP
             </TgButton>
           </div>
         </div>
@@ -226,17 +200,17 @@ export default function TelegramDropPage() {
   if (step === 'sending') {
     return (
       <div className="tg-fade-in">
-        <TgHeader title="CREATING..." subtitle="Please wait" />
+        <TgHeader title="CREATING" subtitle="Please wait" />
 
         <div className="tg-container" style={{ textAlign: 'center', paddingTop: '48px' }}>
           <div className="tg-spinner" style={{ 
-            width: '48px', 
-            height: '48px',
+            width: '32px', 
+            height: '32px',
             margin: '0 auto',
-            borderWidth: '3px'
+            borderWidth: '2px'
           }} />
-          <p className="tg-mt-24" style={{ color: 'var(--tg-hint)' }}>
-            Generating burner wallet...
+          <p className="tg-mt-24" style={{ color: 'var(--tg-muted)', fontSize: '11px', letterSpacing: '0.1em' }}>
+            GENERATING BURNER WALLET
           </p>
         </div>
       </div>
@@ -246,11 +220,11 @@ export default function TelegramDropPage() {
   // Success step
   return (
     <div className="tg-fade-in">
-      <TgHeader title="DROP CREATED!" subtitle="Share the claim code" />
+      <TgHeader title="DROP CREATED" subtitle="Share the claim code" />
 
       <div className="tg-container">
         <div className="tg-status tg-status-success tg-mb-16">
-          ✓ Burner wallet generated
+          BURNER WALLET GENERATED
         </div>
 
         <div className="tg-amount">
@@ -258,46 +232,42 @@ export default function TelegramDropPage() {
             {amount} {asset}
           </div>
           <div className="tg-amount-label">
-            Send to burner, then share code
+            SEND TO BURNER, THEN SHARE CODE
           </div>
         </div>
 
         {/* Burner Address */}
-        <TgCard title="Burner Address">
+        <TgCard title="BURNER ADDRESS">
           <p style={{ 
-            fontFamily: 'monospace', 
-            fontSize: '11px',
+            fontSize: '10px',
             wordBreak: 'break-all',
-            color: 'var(--tg-text)'
+            color: 'var(--tg-text)',
+            lineHeight: '1.6'
           }}>
             {burnerAddress}
           </p>
           <TgButton 
             variant="secondary" 
             className="tg-mt-12"
-            onClick={() => {
-              haptic('light');
-              navigator.clipboard.writeText(burnerAddress);
-              alert('Address copied!');
-            }}
+            onClick={handleCopyAddress}
           >
-            Copy Address
+            COPY ADDRESS
           </TgButton>
         </TgCard>
 
         {/* Claim Code */}
-        <TgCard title="Claim Code (Keep Secret!)">
+        <TgCard title="CLAIM CODE">
           <div className="tg-code">
             <p className="tg-code-value">{claimCode}</p>
           </div>
           <TgButton variant="secondary" onClick={handleCopyCode}>
-            Copy Code
+            COPY CODE
           </TgButton>
         </TgCard>
 
         <div className="tg-mt-16">
           <TgButton onClick={handleShare}>
-            📤 Share via Telegram
+            SHARE VIA TELEGRAM
           </TgButton>
         </div>
 
@@ -306,10 +276,9 @@ export default function TelegramDropPage() {
           className="tg-mt-12"
           onClick={() => router.push('/tg')}
         >
-          Done
+          DONE
         </TgButton>
       </div>
     </div>
   );
 }
-

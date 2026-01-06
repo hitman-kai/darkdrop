@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useTelegram, TgHeader, TgButton, TgCard } from './components';
+import { useTelegram, TgHeader, TgButton } from './components';
 import { useEffect } from 'react';
 
 export default function TelegramHomePage() {
@@ -24,93 +24,68 @@ export default function TelegramHomePage() {
   return (
     <div className="tg-fade-in">
       <TgHeader 
-        subtitle={user ? `Welcome, ${user.first_name}` : 'Private Drops on Solana'}
+        title="ANONYMOUS SOLANA DEAD DROPS"
+        subtitle={user ? `Welcome, ${user.first_name}` : 'No addresses shared. No traceable links.'}
       />
 
       <div className="tg-container">
         {/* Main Actions */}
-        <div className="tg-mt-24">
-          <TgCard onClick={() => handleNavigate('/tg/drop')}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <span style={{ fontSize: '32px' }}>📦</span>
-              <div>
-                <h3 className="tg-card-title" style={{ marginBottom: '4px' }}>Create Drop</h3>
-                <p className="tg-card-desc">Send SOL or USDC privately</p>
-              </div>
+        <div className="tg-mt-20">
+          <div 
+            className="tg-menu-item"
+            onClick={() => handleNavigate('/tg/drop')}
+          >
+            <div className="tg-menu-item-content">
+              <span className="tg-menu-item-title">CREATE DROP</span>
+              <span className="tg-menu-item-desc">Send SOL or USDC privately</span>
             </div>
-          </TgCard>
+            <span className="tg-menu-item-arrow">&gt;</span>
+          </div>
 
-          <TgCard onClick={() => handleNavigate('/tg/claim')}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <span style={{ fontSize: '32px' }}>🎁</span>
-              <div>
-                <h3 className="tg-card-title" style={{ marginBottom: '4px' }}>Claim Drop</h3>
-                <p className="tg-card-desc">Receive funds with a claim code</p>
-              </div>
+          <div 
+            className="tg-menu-item"
+            onClick={() => handleNavigate('/tg/claim')}
+          >
+            <div className="tg-menu-item-content">
+              <span className="tg-menu-item-title">CLAIM DROP</span>
+              <span className="tg-menu-item-desc">Receive funds with a claim code</span>
             </div>
-          </TgCard>
+            <span className="tg-menu-item-arrow">&gt;</span>
+          </div>
         </div>
 
         {/* Features */}
-        <div className="tg-divider tg-mt-24" />
+        <div className="tg-divider" />
 
-        <h2 style={{ 
-          fontSize: '12px', 
-          color: 'var(--tg-hint)', 
-          textTransform: 'uppercase',
-          letterSpacing: '1px',
-          marginBottom: '12px'
-        }}>
-          Features
-        </h2>
+        <p className="tg-label">FEATURES</p>
 
         <div className="tg-list">
           <div className="tg-list-item">
-            <div className="tg-list-item-left">
-              <span className="tg-list-item-icon">🔐</span>
-              <div>
-                <div className="tg-list-item-title">ZK Privacy</div>
-                <div className="tg-list-item-subtitle">Light Protocol compression</div>
-              </div>
-            </div>
+            <span className="tg-list-item-title">ZK COMPRESSION</span>
+            <span className="tg-list-item-right">LIGHT PROTOCOL</span>
           </div>
-
           <div className="tg-list-item">
-            <div className="tg-list-item-left">
-              <span className="tg-list-item-icon">⛽</span>
-              <div>
-                <div className="tg-list-item-title">Gasless Claims</div>
-                <div className="tg-list-item-subtitle">Relayer pays the fees</div>
-              </div>
-            </div>
+            <span className="tg-list-item-title">GASLESS CLAIMS</span>
+            <span className="tg-list-item-right">RELAYER</span>
           </div>
-
           <div className="tg-list-item">
-            <div className="tg-list-item-left">
-              <span className="tg-list-item-icon">🔗</span>
-              <div>
-                <div className="tg-list-item-title">Share via Telegram</div>
-                <div className="tg-list-item-subtitle">Send claims in chat</div>
-              </div>
-            </div>
+            <span className="tg-list-item-title">SHARE VIA TELEGRAM</span>
+            <span className="tg-list-item-right">ENABLED</span>
           </div>
         </div>
 
         {/* Not in Telegram notice */}
         {!isTelegram && (
-          <div className="tg-status tg-status-pending tg-mt-24">
-            ⚠️ Open in Telegram for full experience
+          <div className="tg-status tg-status-pending tg-mt-20">
+            OPEN IN TELEGRAM FOR FULL EXPERIENCE
           </div>
         )}
 
         {/* Footer */}
-        <div className="tg-mt-24" style={{ textAlign: 'center' }}>
-          <p style={{ fontSize: '11px', color: 'var(--tg-hint)' }}>
-            Powered by Solana & Light Protocol
-          </p>
+        <div className="tg-footer">
+          POWERED BY SOLANA
         </div>
       </div>
     </div>
   );
 }
-

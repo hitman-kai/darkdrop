@@ -1,160 +1,187 @@
-/* Telegram Mini App Styles - Completely isolated from web */
+/* Telegram Mini App - DarkDrop Style */
 
 .tg-app {
-  --tg-bg: var(--tg-theme-bg-color, #1a1a1a);
-  --tg-text: var(--tg-theme-text-color, #ffffff);
-  --tg-hint: var(--tg-theme-hint-color, #999999);
-  --tg-link: var(--tg-theme-link-color, #64b5f6);
-  --tg-button: var(--tg-theme-button-color, #50e3c2);
-  --tg-button-text: var(--tg-theme-button-text-color, #000000);
-  --tg-secondary-bg: var(--tg-theme-secondary-bg-color, #2a2a2a);
+  --tg-bg: #000000;
+  --tg-card: #0a0a0a;
+  --tg-text: #e0e0e0;
+  --tg-accent: #00ff41;
+  --tg-danger: #ff0044;
+  --tg-muted: rgba(224, 224, 224, 0.65);
+  --tg-border: rgba(0, 255, 65, 0.3);
 
   min-height: 100vh;
   background: var(--tg-bg);
   color: var(--tg-text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Fira Code', 'SF Mono', 'Roboto Mono', monospace;
   padding: 0;
   margin: 0;
   overflow-x: hidden;
+  letter-spacing: 0.03em;
 }
 
-/* TG Typography */
+/* Typography */
 .tg-app h1 {
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 600;
   margin: 0;
-  letter-spacing: -0.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #ffffff;
 }
 
 .tg-app h2 {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 400;
   margin: 0;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: var(--tg-accent);
 }
 
 .tg-app p {
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.6;
   margin: 0;
-  color: var(--tg-hint);
+  color: var(--tg-muted);
 }
 
-/* TG Container */
+/* Container */
 .tg-container {
-  padding: 16px;
+  padding: 20px 16px;
   max-width: 100%;
 }
 
-/* TG Header */
+/* Header */
 .tg-header {
-  padding: 20px 16px;
+  padding: 24px 16px;
   text-align: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid var(--tg-border);
 }
 
-.tg-header-logo {
-  font-size: 32px;
+.tg-header-tag {
+  font-size: 10px;
+  letter-spacing: 0.8em;
+  color: var(--tg-accent);
+  text-transform: uppercase;
   margin-bottom: 8px;
 }
 
 .tg-header-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--tg-text);
-  letter-spacing: 2px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
 }
 
 .tg-header-subtitle {
   font-size: 12px;
-  color: var(--tg-hint);
-  margin-top: 4px;
+  color: var(--tg-muted);
+  margin-top: 8px;
+  letter-spacing: 0.05em;
 }
 
-/* TG Card */
+/* Card */
 .tg-card {
-  background: var(--tg-secondary-bg);
-  border-radius: 12px;
+  background: var(--tg-card);
+  border: 1px solid var(--tg-border);
   padding: 16px;
   margin-bottom: 12px;
 }
 
 .tg-card-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--tg-text);
-  margin-bottom: 8px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--tg-accent);
+  margin-bottom: 12px;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
 }
 
 .tg-card-desc {
   font-size: 13px;
-  color: var(--tg-hint);
+  color: var(--tg-muted);
+  line-height: 1.5;
 }
 
-/* TG Button */
+/* Button */
 .tg-button {
   width: 100%;
   padding: 14px 20px;
-  border: none;
-  border-radius: 10px;
-  font-size: 15px;
-  font-weight: 600;
+  border: 1px solid var(--tg-accent);
+  background: rgba(0, 255, 65, 0.08);
+  font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
-  transition: transform 0.1s, opacity 0.2s;
+  transition: background 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  color: var(--tg-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-family: inherit;
 }
 
 .tg-button:active {
-  transform: scale(0.98);
+  background: rgba(0, 255, 65, 0.15);
 }
 
 .tg-button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
 .tg-button-primary {
-  background: var(--tg-button);
-  color: var(--tg-button-text);
+  background: rgba(0, 255, 65, 0.1);
+  border-color: var(--tg-accent);
+  color: var(--tg-accent);
 }
 
 .tg-button-secondary {
-  background: var(--tg-secondary-bg);
+  background: transparent;
+  border-color: var(--tg-border);
   color: var(--tg-text);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.tg-button-danger {
+  background: rgba(255, 0, 68, 0.08);
+  border-color: rgba(255, 0, 68, 0.4);
+  color: var(--tg-danger);
 }
 
 .tg-button-ghost {
   background: transparent;
-  color: var(--tg-link);
+  border-color: transparent;
+  color: var(--tg-muted);
 }
 
-/* TG Input */
+/* Input */
 .tg-input {
   width: 100%;
-  padding: 14px 16px;
-  background: var(--tg-secondary-bg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  font-size: 15px;
+  padding: 14px 12px;
+  background: #040404;
+  border: 1px solid var(--tg-border);
+  font-size: 13px;
   color: var(--tg-text);
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
   box-sizing: border-box;
+  font-family: inherit;
+  letter-spacing: 0.02em;
 }
 
 .tg-input:focus {
-  border-color: var(--tg-button);
+  border-color: var(--tg-accent);
+  box-shadow: 0 0 0 2px rgba(0, 255, 65, 0.2);
 }
 
 .tg-input::placeholder {
-  color: var(--tg-hint);
+  color: rgba(224, 224, 224, 0.35);
 }
 
-/* TG Select (Asset Picker) */
+/* Select (Asset Picker) */
 .tg-select {
   display: flex;
   gap: 8px;
@@ -163,122 +190,126 @@
 
 .tg-select-option {
   flex: 1;
-  padding: 12px;
-  background: var(--tg-secondary-bg);
-  border: 2px solid transparent;
-  border-radius: 10px;
+  padding: 14px 12px;
+  background: transparent;
+  border: 1px solid var(--tg-border);
   text-align: center;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
+  font-family: inherit;
 }
 
 .tg-select-option.active {
-  border-color: var(--tg-button);
-  background: rgba(80, 227, 194, 0.1);
-}
-
-.tg-select-option-icon {
-  font-size: 24px;
-  margin-bottom: 4px;
+  border-color: var(--tg-accent);
+  background: rgba(0, 255, 65, 0.08);
 }
 
 .tg-select-option-label {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--tg-text);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
-/* TG Amount Display */
+/* Amount Display */
 .tg-amount {
   text-align: center;
   padding: 24px;
-  background: var(--tg-secondary-bg);
-  border-radius: 12px;
+  border: 1px solid var(--tg-border);
+  background: var(--tg-card);
   margin-bottom: 16px;
 }
 
 .tg-amount-value {
-  font-size: 36px;
-  font-weight: 700;
-  color: var(--tg-text);
+  font-size: 28px;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: 0.05em;
 }
 
 .tg-amount-label {
-  font-size: 13px;
-  color: var(--tg-hint);
-  margin-top: 4px;
+  font-size: 11px;
+  color: var(--tg-muted);
+  margin-top: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
-/* TG Claim Code Display */
+/* Code Display */
 .tg-code {
-  background: var(--tg-secondary-bg);
-  border-radius: 12px;
-  padding: 16px;
-  margin: 16px 0;
+  background: #040404;
+  border: 1px solid var(--tg-border);
+  padding: 12px;
+  margin: 12px 0;
 }
 
 .tg-code-label {
-  font-size: 11px;
-  color: var(--tg-hint);
+  font-size: 10px;
+  color: var(--tg-accent);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.3em;
   margin-bottom: 8px;
 }
 
 .tg-code-value {
-  font-family: 'SF Mono', 'Roboto Mono', monospace;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--tg-text);
   word-break: break-all;
   line-height: 1.6;
 }
 
-/* TG Status */
+/* Status */
 .tg-status {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  border-radius: 10px;
-  font-size: 14px;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  border: 1px solid;
 }
 
 .tg-status-success {
-  background: rgba(80, 227, 194, 0.15);
-  color: #50e3c2;
+  background: rgba(0, 255, 65, 0.08);
+  border-color: rgba(0, 255, 65, 0.3);
+  color: var(--tg-accent);
 }
 
 .tg-status-error {
-  background: rgba(255, 82, 82, 0.15);
-  color: #ff5252;
+  background: rgba(255, 0, 68, 0.08);
+  border-color: rgba(255, 0, 68, 0.3);
+  color: var(--tg-danger);
 }
 
 .tg-status-pending {
-  background: rgba(255, 193, 7, 0.15);
-  color: #ffc107;
+  background: rgba(224, 224, 224, 0.05);
+  border-color: rgba(224, 224, 224, 0.2);
+  color: var(--tg-muted);
 }
 
-/* TG Divider */
+/* Divider */
 .tg-divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 16px 0;
+  background: var(--tg-border);
+  margin: 20px 0;
 }
 
-/* TG List */
+/* List */
 .tg-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 1px;
+  background: var(--tg-border);
+  border: 1px solid var(--tg-border);
 }
 
 .tg-list-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background: var(--tg-secondary-bg);
-  border-radius: 10px;
+  padding: 14px 16px;
+  background: var(--tg-card);
 }
 
 .tg-list-item-left {
@@ -287,57 +318,117 @@
   gap: 12px;
 }
 
-.tg-list-item-icon {
-  font-size: 20px;
-}
-
 .tg-list-item-title {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 12px;
   color: var(--tg-text);
+  letter-spacing: 0.05em;
 }
 
 .tg-list-item-subtitle {
-  font-size: 12px;
-  color: var(--tg-hint);
+  font-size: 11px;
+  color: var(--tg-muted);
+  margin-top: 2px;
 }
 
 .tg-list-item-right {
-  font-size: 14px;
-  color: var(--tg-hint);
+  font-size: 11px;
+  color: var(--tg-accent);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
-/* TG Spacing utilities */
+/* Menu Item */
+.tg-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: var(--tg-card);
+  border: 1px solid var(--tg-border);
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.tg-menu-item:active {
+  background: rgba(0, 255, 65, 0.05);
+  border-color: var(--tg-accent);
+}
+
+.tg-menu-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tg-menu-item-title {
+  font-size: 13px;
+  color: #ffffff;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tg-menu-item-desc {
+  font-size: 11px;
+  color: var(--tg-muted);
+}
+
+.tg-menu-item-arrow {
+  color: var(--tg-accent);
+  font-size: 14px;
+}
+
+/* Label */
+.tg-label {
+  display: block;
+  font-size: 10px;
+  color: var(--tg-accent);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+}
+
+/* Spacing utilities */
 .tg-mt-8 { margin-top: 8px; }
 .tg-mt-12 { margin-top: 12px; }
 .tg-mt-16 { margin-top: 16px; }
+.tg-mt-20 { margin-top: 20px; }
 .tg-mt-24 { margin-top: 24px; }
 .tg-mb-8 { margin-bottom: 8px; }
 .tg-mb-12 { margin-bottom: 12px; }
 .tg-mb-16 { margin-bottom: 16px; }
 .tg-mb-24 { margin-bottom: 24px; }
 
-/* TG Fade animation */
+/* Fade animation */
 @keyframes tg-fade-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .tg-fade-in {
-  animation: tg-fade-in 0.3s ease-out;
+  animation: tg-fade-in 0.25s ease-out;
 }
 
-/* TG Loading spinner */
+/* Loading spinner */
 .tg-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid transparent;
-  border-top-color: currentColor;
+  width: 16px;
+  height: 16px;
+  border: 1px solid transparent;
+  border-top-color: var(--tg-accent);
   border-radius: 50%;
-  animation: tg-spin 0.8s linear infinite;
+  animation: tg-spin 0.6s linear infinite;
 }
 
 @keyframes tg-spin {
   to { transform: rotate(360deg); }
 }
 
+/* Footer */
+.tg-footer {
+  text-align: center;
+  padding: 24px 16px;
+  font-size: 10px;
+  color: var(--tg-muted);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
