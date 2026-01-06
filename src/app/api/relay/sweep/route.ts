@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
             payer: relayerKeypair.publicKey,
             inputCompressedAccounts: compressedAccounts.items,
             toAddress: relayerKeypair.publicKey,
-            lamports: totalLamports,
+            lamports: bn(totalLamports.toString()),
             recentValidityProof: proof.compressedProof,
             recentInputStateRootIndices: proof.rootIndices,
           });
@@ -230,7 +230,7 @@ export async function POST(req: NextRequest) {
             payer: relayerKeypair.publicKey,
             inputCompressedTokenAccounts: compressedAccounts.items,
             toAddress: relayerAta,
-            amount: totalAmount,
+            amount: bn(totalAmount.toString()),
             tokenPoolInfos: selectedTokenPoolInfos,
             recentValidityProof: proof.compressedProof,
             recentInputStateRootIndices: proof.rootIndices,

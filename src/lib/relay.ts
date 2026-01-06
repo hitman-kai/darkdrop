@@ -97,7 +97,7 @@ async function executeRelayedSolClaim(
     payer: relayerKeypair.publicKey,
     inputCompressedAccounts: compressedAccounts.items,
     toAddress: destinationPubkey,
-    lamports: amountToSend, // Only send amount minus fee
+    lamports: bn(amountToSend.toString()), // Only send amount minus fee
     recentValidityProof: proof.compressedProof,
     recentInputStateRootIndices: proof.rootIndices,
   });
@@ -242,7 +242,7 @@ async function executeRelayedUsdcClaim(
     payer: relayerKeypair.publicKey,
     inputCompressedTokenAccounts: inputAccounts,
     toAddress: destinationAta,
-    amount: amountToSend, // Only send amount minus fee
+    amount: bn(amountToSend.toString()), // Only send amount minus fee
     tokenPoolInfos: selectedTokenPoolInfos,
     recentValidityProof: proof.compressedProof,
     recentInputStateRootIndices: proof.rootIndices,
@@ -341,7 +341,7 @@ async function executeRelayedUsdcClaim(
             payer: relayerKeypair.publicKey,
             inputCompressedTokenAccounts: feeAccounts.items,
             toAddress: relayerAta,
-            amount: feeTotal,
+            amount: bn(feeTotal.toString()),
             tokenPoolInfos: selectedFeePoolInfos,
             recentValidityProof: feeProof.compressedProof,
             recentInputStateRootIndices: feeProof.rootIndices,
