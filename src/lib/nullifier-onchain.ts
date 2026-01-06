@@ -52,13 +52,13 @@ export function createMarkNullifierUsedInstruction(
   const discriminator = Buffer.from([0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0]); // Placeholder
   
   const data = Buffer.alloc(8 + 32 + (signature ? 4 + signature.length : 0));
-  discriminator.copy(data, 0);
-  nullifierArray.copy(data, 8);
+  data.set(discriminator, 0);
+  data.set(nullifierArray, 8);
   
   if (signature) {
     const sigBuffer = Buffer.from(signature, "utf8");
     data.writeUInt32LE(sigBuffer.length, 40);
-    sigBuffer.copy(data, 44);
+    data.set(sigBuffer, 44);
   }
   
   return new TransactionInstruction({
