@@ -6,9 +6,9 @@ const usedNullifiers = new Set<string>();
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { nullifier: string } }
+  { params }: { params: Promise<{ nullifier: string }> }
 ) {
-  const { nullifier } = params;
+  const { nullifier } = await params;
   
   if (!nullifier) {
     return NextResponse.json({ error: "Nullifier required" }, { status: 400 });
