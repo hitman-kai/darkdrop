@@ -607,7 +607,7 @@ export default function ClaimDropPage() {
                 <button
                   type="button"
                   onClick={claimViaRelayer}
-                  disabled={sweeping || (relayerStatus && !relayerStatus.online)}
+                  disabled={sweeping || !!(relayerStatus && !relayerStatus.online)}
                   className="flex flex-1 items-center justify-center gap-2 border-[rgba(0,255,65,0.6)] bg-[rgba(0,255,65,0.08)] text-[var(--accent)]"
                 >
                   <Radio size={16} />
