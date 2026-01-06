@@ -68,7 +68,7 @@ export default function Home() {
             </Link>
           </div>
           <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[var(--accent)]">
-            v1 live • v2 (confidential transfers + Light Protocol) coming soon
+            v2 live - ZK compression via Light Protocol
           </p>
           <Link
             href="https://x.com/darkdrop_sol"

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, Lock, Shield, Share, Terminal } from "lucide-react";
+import { ArrowUpRight, Eye, EyeOff, Lock, Shield, Share, Terminal } from "lucide-react";
 
 export const metadata = {
   title: "DarkDrop Documentation",
@@ -13,16 +13,79 @@ const sections = [
     content: (
       <>
         <p>
-          DarkDrop is a “dead drop” layer on Solana mainnet. When you create a drop, the app spins up a disposable
-          keypair (“burner”), transfers the requested asset into it, and hands you the burner’s private key as a claim
-          string. Anyone holding that string can reconstruct the keypair and sweep the funds, but there is no on-chain
-          link between the sender and recipient beyond the initial deposit.
+          DarkDrop is a privacy-focused "dead drop" layer on Solana mainnet. Create anonymous transfers using either
+          traditional burner keypairs (v1) or ZK-compressed drops via Light Protocol (v2 Ultra Private Mode).
         </p>
         <ul className="list-disc space-y-2 pl-6 text-sm text-[rgba(224,224,224,0.75)]">
-          <li>SOL and cUSDC (Token-2022, mainnet) are supported.</li>
-          <li>Password protection optionally encrypts the private key with AES (tweetnacl secretbox + PBKDF2).</li>
-          <li>Claim strings use the format <code>darkdrop:v1:{`{cluster}`}:{`{asset}`}:{`{mode}`}:{`…`}</code>.</li>
+          <li>SOL and USDC are supported on mainnet.</li>
+          <li>Ultra Private Mode uses Light Protocol ZK compression for true on-chain privacy.</li>
+          <li>Password protection optionally encrypts claim codes with AES-256.</li>
+          <li>v2 claim strings: <code>darkdrop:v2:mainnet:sol:compressed:raw:...</code></li>
         </ul>
+      </>
+    ),
+  },
+  {
+    id: "ultra-private",
+    title: "Ultra Private Mode (v2)",
+    icon: <Shield size={18} />,
+    content: (
+      <>
+        <p>
+          Ultra Private Mode uses Light Protocol&apos;s ZK compression to hide your drop in a merkle tree with validity proofs.
+          Unlike burner wallets, compressed drops don&apos;t create visible on-chain accounts.
+        </p>
+        <ol className="space-y-3 text-sm text-[rgba(224,224,224,0.8)] mt-4">
+          <li>
+            <strong>Create:</strong> Your SOL/USDC is compressed into Light Protocol&apos;s state tree, owned by a random keypair.
+          </li>
+          <li>
+            <strong>Share:</strong> The claim code contains the keypair to access the compressed funds.
+          </li>
+          <li>
+            <strong>Claim:</strong> Recipient decompresses the funds to their wallet using validity proofs.
+          </li>
+        </ol>
+      </>
+    ),
+  },
+  {
+    id: "privacy-model",
+    title: "Privacy Model",
+    icon: <EyeOff size={18} />,
+    content: (
+      <>
+        <p>
+          DarkDrop v2 breaks the on-chain link between sender and receiver. Here&apos;s how privacy works:
+        </p>
+        <div className="mt-4 space-y-4">
+          <div className="border-l-2 border-[var(--accent)] pl-4">
+            <p className="text-xs tracking-wider text-[var(--accent)] mb-2">WHAT&apos;S HIDDEN</p>
+            <ul className="list-disc space-y-1 pl-4 text-sm text-[rgba(224,224,224,0.75)]">
+              <li>The recipient address until claim time</li>
+              <li>The link between deposit and withdrawal (different wallets)</li>
+              <li>The exact compressed account in the Merkle tree</li>
+              <li>Who created the drop vs who claimed it</li>
+            </ul>
+          </div>
+          <div className="border-l-2 border-[rgba(224,224,224,0.3)] pl-4">
+            <p className="text-xs tracking-wider text-[rgba(224,224,224,0.5)] mb-2">WHAT&apos;S VISIBLE</p>
+            <ul className="list-disc space-y-1 pl-4 text-sm text-[rgba(224,224,224,0.6)]">
+              <li>Amount deposited into the ZK compression pool</li>
+              <li>Amount withdrawn from the compression pool</li>
+              <li>The claimer&apos;s wallet address (when they claim)</li>
+            </ul>
+          </div>
+          <div className="mt-4 bg-black/40 p-4 font-mono text-xs text-[rgba(224,224,224,0.7)]">
+            <p className="text-[var(--accent)] mb-2">// Privacy Flow</p>
+            <p>Creator (Wallet A) --&gt; Compress --&gt; Merkle Tree</p>
+            <p className="text-[rgba(224,224,224,0.4)]">{"                              |"}</p>
+            <p className="text-[rgba(224,224,224,0.4)]">{"                    [share code off-chain]"}</p>
+            <p className="text-[rgba(224,224,224,0.4)]">{"                              |"}</p>
+            <p>Claimer (Wallet B) &lt;-- Decompress &lt;-- Merkle Tree</p>
+            <p className="mt-2 text-[var(--accent)]">// No on-chain link between Wallet A and B</p>
+          </div>
+        </div>
       </>
     ),
   },
@@ -33,41 +96,44 @@ const sections = [
     content: (
       <ol className="space-y-3 text-sm text-[rgba(224,224,224,0.8)]">
         <li>
-          Connect a wallet that is on <strong>Solana Mainnet Beta</strong> and funded with SOL (0.01 SOL buffer
-          recommended). cUSDC (Token-2022) drops also require rent for the recipient ATA.
+          Connect a wallet on <strong>Solana Mainnet</strong> funded with SOL (0.01 SOL buffer recommended for fees).
         </li>
         <li>
-          Pick the asset + amount and optionally enter a password. When you confirm, DarkDrop generates a new burner
-          keypair entirely in-browser and pushes the funds into it via a System Program transfer (and ATA instructions
-          for USDC).
+          Pick SOL or USDC, enter the amount, and optionally set a password.
         </li>
         <li>
-          You receive (a) a claim string, (b) a QR code representation, and (c) the Solscan link for the deposit
-          transaction. Share only the claim string/QR; never send the keypair anywhere else.
+          <strong>Standard Mode:</strong> Funds go to a burner keypair (visible on-chain but unlinkable).
+        </li>
+        <li>
+          <strong>Ultra Private Mode:</strong> Funds are ZK-compressed into Light Protocol (hidden on-chain).
+        </li>
+        <li>
+          You receive a claim code and QR. Share only with the intended recipient.
         </li>
       </ol>
     ),
   },
   {
     id: "share",
-    title: "Sharing & Claim Codes",
+    title: "Claim Code Formats",
     icon: <Share size={18} />,
     content: (
       <>
         <p>
-          Raw drops use base58-encoded secret keys. Password-protected drops append an AES payload with a password hint
-          (first 8 bytes of the PBKDF2 hash) so the recipient can verify they have the right passphrase before
-          decrypting.
+          Claim codes encode the keypair needed to access funds. Password-protected codes use AES encryption with a hint.
         </p>
         <ul className="list-disc space-y-2 pl-6 text-sm text-[rgba(224,224,224,0.75)]">
           <li>
-            <code>darkdrop:v1:mainnet:sol:raw:XyZ…</code> – raw SOL drop.
+            <code>darkdrop:v2:mainnet:sol:compressed:raw:...</code> - Ultra Private SOL drop
           </li>
           <li>
-            <code>darkdrop:v1:mainnet:usdc:aes:2f8a9c11:BASE64</code> – password-protected cUSDC (Token-2022) drop.
+            <code>darkdrop:v2:mainnet:sol:raw:...</code> - Standard SOL drop
           </li>
           <li>
-            Older “legacy” claim strings that are just base58 private keys are still supported during import.
+            <code>darkdrop:v2:mainnet:usdc:compressed:aes:HINT:...</code> - Password-protected compressed USDC
+          </li>
+          <li>
+            Legacy v1 codes and raw base58 keys are still supported.
           </li>
         </ul>
       </>
@@ -80,16 +146,16 @@ const sections = [
     content: (
       <ol className="space-y-3 text-sm text-[rgba(224,224,224,0.8)]">
         <li>
-          Paste or scan the claim string. If the drop was encrypted, enter the password and the app will confirm the hint
-          before decrypting.
+          Paste or scan the claim code. Enter password if encrypted.
         </li>
         <li>
-          DarkDrop rebuilds the burner keypair locally and temporarily registers it with Wallet Adapter as “Burner
-          Import.” The burner never leaves the browser.
+          <strong>Standard drops:</strong> DarkDrop rebuilds the burner keypair and sweeps funds to your wallet.
         </li>
         <li>
-          When you hit <strong>Sweep</strong>, the app signs a transfer from the burner to your connected wallet and
-          destroys the burner reference. Local history is the only record.
+          <strong>Compressed drops:</strong> Light Protocol decompresses the funds using validity proofs.
+        </li>
+        <li>
+          The claim keypair is destroyed after sweep. Local history is the only record.
         </li>
       </ol>
     ),
@@ -100,16 +166,11 @@ const sections = [
     icon: <Lock size={18} />,
     content: (
       <ul className="list-disc space-y-3 pl-6 text-sm text-[rgba(224,224,224,0.75)]">
-        <li>Everything happens client-side; no claim strings or private keys ever touch a server.</li>
-        <li>
-          Use strong passwords for AES drops and communicate them out-of-band. The password hint is only a hash fragment
-          so the sender/recipient can confirm they’re in sync.
-        </li>
-        <li>
-          Treat claim strings like bearer instruments. Anyone with the string can sweep the funds, so avoid copying them
-          into shared channels.
-        </li>
-        <li>cUSDC (Token-2022) drops require ~0.002 SOL extra to pay ATA rent for the burner.</li>
+        <li>Everything happens client-side; no keys or claim codes touch a server.</li>
+        <li>Ultra Private Mode provides stronger privacy than burner wallets.</li>
+        <li>Use strong passwords and share them out-of-band (different channel than the code).</li>
+        <li>Treat claim codes like cash - anyone with the code can claim the funds.</li>
+        <li>USDC drops require ~0.002 SOL extra to pay for token account rent.</li>
       </ul>
     ),
   },
@@ -120,12 +181,12 @@ const sections = [
     content: (
       <>
         <p>
-          The underlying helpers live in <code>src/lib/drop.ts</code> (claim formatting / parsing) and <code>src/lib/encryption.ts</code> (tweetnacl secretbox + PBKDF2 using @noble/hashes). Burner wallets are
-          mounted via a lightweight adapter so Wallet Adapter treats them like any other signer.
+          Core logic lives in <code>src/lib/drop.ts</code> (compression/decompression via Light Protocol),
+          <code>src/lib/encryption.ts</code> (AES), and <code>src/lib/nullifier.ts</code> (double-spend prevention).
         </p>
         <p className="mt-2 text-sm text-[rgba(224,224,224,0.75)]">
-          The history, settings, and burner stores are implemented with Zustand and persist only to the user’s browser.
-          Clearing site data obliterates your local activity log.
+          Light Protocol SDK: <code>@lightprotocol/compressed-token</code> and <code>@lightprotocol/stateless.js</code>.
+          History and settings persist in browser localStorage via Zustand.
         </p>
       </>
     ),

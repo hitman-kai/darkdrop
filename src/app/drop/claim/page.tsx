@@ -14,6 +14,7 @@ import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { unitsToAmount } from "@/lib/amount";
 import { claimDrop, unshieldDrop } from "@/lib/drop";
 import { AssetSymbol, ClusterType, CLUSTER_LABELS, getAssetDecimals, getAssetMint, getAssetProgramId, getAssetSymbol } from "@/lib/tokens";
+import { generateNullifier, getNullifierRegistry } from "@/lib/nullifier";
 import { createRpc } from "@lightprotocol/stateless.js";
 import BN from "bn.js";
 
@@ -238,8 +239,22 @@ export default function ClaimDropPage() {
     }
 
     if (burner.asset === "usdc" && burner.balance <= 0n) {
-      setError("No cUSDC remaining to sweep.");
+      setError("No USDC remaining to sweep.");
       return;
+    }
+
+    // Check nullifier for regular drops (compressed drops check in unshieldDrop)
+    if (!burner.compressed) {
+      const nullifier = generateNullifier(burner.keypair);
+      const registry = getNullifierRegistry();
+      const isUsed = await registry.isUsed(nullifier);
+      
+      if (isUsed) {
+        setError("This drop has already been claimed. Nullifier already used.");
+        return;
+      }
+      
+      console.log(`[Nullifier] Checking nullifier for regular drop: ${nullifier.substring(0, 16)}... (not used)`);
     }
 
     setSweeping(true);
@@ -263,6 +278,14 @@ export default function ClaimDropPage() {
         const signature = await connection.sendRawTransaction(tx.serialize());
         await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
 
+        // Mark nullifier as used for regular SOL drops
+        if (!burner.compressed) {
+          const nullifier = generateNullifier(burner.keypair);
+          const registry = getNullifierRegistry();
+          await registry.markUsed(nullifier, signature);
+          console.log(`[Nullifier] Marked nullifier as used for regular SOL drop`);
+        }
+
         updateDropStatus(burner.keypair.publicKey.toBase58(), "claimed");
         addClaimedDrop({
           address: burner.keypair.publicKey.toBase58(),
@@ -275,7 +298,7 @@ export default function ClaimDropPage() {
       } else {
         const mintAddress = getAssetMint(burner.asset, burner.cluster);
         const tokenProgramId = getAssetProgramId(burner.asset);
-        if (!mintAddress || !tokenProgramId) throw new Error("Missing token mint for cUSDC (Token-2022).");
+        if (!mintAddress || !tokenProgramId) throw new Error("Missing token mint for USDC.");
         const mint = new PublicKey(mintAddress);
         const sourceAta = await getAssociatedTokenAddress(mint, burner.keypair.publicKey, true, tokenProgramId);
         const destAta = await getAssociatedTokenAddress(mint, mainWallet, true, tokenProgramId);
@@ -298,6 +321,14 @@ export default function ClaimDropPage() {
         tx.sign(burner.keypair);
         const signature = await connection.sendRawTransaction(tx.serialize());
         await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
+
+        // Mark nullifier as used for regular USDC drops
+        if (!burner.compressed) {
+          const nullifier = generateNullifier(burner.keypair);
+          const registry = getNullifierRegistry();
+          await registry.markUsed(nullifier, signature);
+          console.log(`[Nullifier] Marked nullifier as used for regular USDC drop`);
+        }
 
         updateDropStatus(burner.keypair.publicKey.toBase58(), "claimed");
         addClaimedDrop({
@@ -350,7 +381,7 @@ export default function ClaimDropPage() {
             onChange={(event) => setClaimCode(event.target.value)}
             rows={4}
             className="mt-2 w-full"
-            placeholder="darkdrop:v1:mainnet:usdc:raw:..."
+            placeholder="darkdrop:v2:mainnet:sol:compressed:raw:..."
           />
         </label>
         <label className="block text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">

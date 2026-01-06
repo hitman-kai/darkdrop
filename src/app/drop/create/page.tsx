@@ -31,7 +31,7 @@ import { useHistoryStore } from "@/store/history";
 import { useSettingsStore } from "@/store/settings";
 import { usePrivacyStore } from "@/store/privacy";
 
-const CUSDC_FEE_BUFFER_LAMPORTS = Math.round(0.002 * LAMPORTS_PER_SOL);
+const USDC_FEE_BUFFER_LAMPORTS = Math.round(0.002 * LAMPORTS_PER_SOL);
 
 const explorerUrl = (signature: string) => {
   const base = `https://solscan.io/tx/${signature}`;
@@ -117,7 +117,7 @@ export default function CreateDropPage() {
       };
     }
     if (!mintAddress) {
-      setConfidentialNotes(["Missing cUSDC mint configuration."]);
+      setConfidentialNotes(["Missing USDC mint configuration."]);
       setPrivacyPending(false);
       return () => {
         cancelled = true;
@@ -193,7 +193,7 @@ export default function CreateDropPage() {
     try {
       const walletAccount = await connection.getAccountInfo(publicKey, "confirmed");
       if (!walletAccount) {
-        throw new Error("Wallet not found on Solana Mainnet Beta. Switch your wallet network and ensure it holds mainnet SOL (and cUSDC if needed).");
+        throw new Error("Wallet not found on Solana Mainnet Beta. Switch your wallet network and ensure it holds mainnet SOL (and USDC if needed).");
       }
 
       const rawAmount = amountToUnits(amount, decimals);
@@ -288,7 +288,7 @@ export default function CreateDropPage() {
         const mintAddress = getAssetMint(asset, cluster);
         const tokenProgramId = getAssetProgramId(asset);
         if (!mintAddress) {
-          throw new Error(`USDC mint address not configured for ${CLUSTER_LABELS[cluster]}. Please set NEXT_PUBLIC_CUSDC_MAINNET_MINT in .env.local`);
+          throw new Error(`USDC mint address not configured for ${CLUSTER_LABELS[cluster]}. Please set NEXT_PUBLIC_USDC_MAINNET_MINT in .env.local`);
         }
         if (!tokenProgramId) {
           throw new Error(`Token program ID not configured for ${symbol}`);
@@ -369,7 +369,7 @@ export default function CreateDropPage() {
           SystemProgram.transfer({
             fromPubkey: publicKey,
             toPubkey: dropPubkey,
-            lamports: CUSDC_FEE_BUFFER_LAMPORTS,
+            lamports: USDC_FEE_BUFFER_LAMPORTS,
           })
         );
         const tx = new Transaction().add(...instructions);
@@ -484,25 +484,12 @@ export default function CreateDropPage() {
             </p>
           )}
         </div>
-        {!ultraPrivateMode && (
-          <ConfidentialPreviewCard
-            enabled={privateMode}
-            pending={privacyPending}
-            notes={confidentialNotes}
-            onToggle={(next) => setPrivateMode(next)}
-            disabledReason={
-              confidentialSupported
-                ? undefined
-                : confidentialSupportReason ?? "Asset not supported on Token-2022."
-            }
-          />
-        )}
 
         <div className="flex flex-wrap items-center gap-4 border border-[rgba(0,255,65,0.2)] p-4 text-xs">
           <ShieldQuestion size={16} />
           <p className="text-[rgba(224,224,224,0.7)]">
             Password adds AES layer. Claim string becomes
-            <span className="text-[var(--accent)]"> {CODE_PREVIEW(cluster, asset)}</span>
+            <span className="text-[var(--accent)]"> {CODE_PREVIEW(cluster, asset, ultraPrivateMode)}</span>
           </p>
         </div>
         {error && (
@@ -566,15 +553,17 @@ export default function CreateDropPage() {
   );
 }
 
-const CODE_PREVIEW = (cluster: ClusterType, asset: AssetSymbol) =>
-  `darkdrop:v1:${cluster}:${asset}:raw:...`;
+const CODE_PREVIEW = (cluster: ClusterType, asset: AssetSymbol, compressed: boolean = false) =>
+  compressed 
+    ? `darkdrop:v2:${cluster}:${asset}:compressed:raw:...`
+    : `darkdrop:v2:${cluster}:${asset}:raw:...`;
 
 const normalizeTxError = (error: unknown): string => {
   if (error instanceof Error) {
     const message = error.message;
     const lower = message.toLowerCase();
     if (lower.includes("invalid public key input")) {
-      return "RPC rejected the transaction. Switch your wallet to Solana Mainnet Beta and ensure it holds mainnet SOL/cUSDC.";
+      return "RPC rejected the transaction. Switch your wallet to Solana Mainnet Beta and ensure it holds mainnet SOL/USDC.";
     }
     if (lower.includes("blockhash not found")) {
       return "Stale blockhash. Reconnect your wallet on Solana Mainnet Beta and try again.";
