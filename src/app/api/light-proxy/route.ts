@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import { Connection, PublicKey, Transaction, AccountMeta } from "@solana/web3.js";
 import { loadLightSDK } from "@/lib/server/light-sdk-loader";
 
 /**
@@ -93,7 +93,7 @@ async function handleShield(params: {
     nullifier: Array.from(nullifier.toBytes()),
     shieldInstruction: {
       programId: shieldIx.programId.toString(),
-      keys: shieldIx.keys.map((k) => ({
+      keys: shieldIx.keys.map((k: AccountMeta) => ({
         pubkey: k.pubkey.toString(),
         isSigner: k.isSigner,
         isWritable: k.isWritable,
@@ -141,7 +141,7 @@ async function handleUnshield(params: {
     success: true,
     unshieldInstruction: {
       programId: unshieldIx.programId.toString(),
-      keys: unshieldIx.keys.map((k) => ({
+      keys: unshieldIx.keys.map((k: AccountMeta) => ({
         pubkey: k.pubkey.toString(),
         isSigner: k.isSigner,
         isWritable: k.isWritable,
