@@ -222,7 +222,7 @@ export async function POST(req: NextRequest) {
           const tokenPoolInfos = await getTokenPoolInfos(rpc, mint);
           const selectedTokenPoolInfos = selectTokenPoolInfosForDecompression(
             tokenPoolInfos,
-            totalAmount
+            bn(totalAmount.toString())
           );
           
           // Build decompress to relayer's ATA

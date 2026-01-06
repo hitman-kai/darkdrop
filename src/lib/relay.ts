@@ -231,7 +231,7 @@ async function executeRelayedUsdcClaim(
   const tokenPoolInfos = await getTokenPoolInfos(rpc, mint);
   const selectedTokenPoolInfos = selectTokenPoolInfosForDecompression(
     tokenPoolInfos,
-    amountToSend // Use amount to send for pool selection
+    bn(amountToSend.toString()) // Use amount to send for pool selection
   );
   
   console.log("[Relayer] Got", tokenPoolInfos.length, "token pools, selected", selectedTokenPoolInfos.length);
@@ -334,7 +334,7 @@ async function executeRelayedUsdcClaim(
           
           // Get token pool infos
           const feePoolInfos = await getTokenPoolInfos(rpc, mint);
-          const selectedFeePoolInfos = selectTokenPoolInfosForDecompression(feePoolInfos, feeTotal);
+          const selectedFeePoolInfos = selectTokenPoolInfosForDecompression(feePoolInfos, bn(feeTotal.toString()));
           
           // Decompress fee to relayer's ATA
           const sweepIx = await CompressedTokenProgram.decompress({
