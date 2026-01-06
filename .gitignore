@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# analysis documents (not for commit)
+CUSTOM_PROGRAM_ANALYSIS.md
+PRIVACY_CUSTOM_PROGRAM.md
+ONCHAIN_NULLIFIER_IMPLEMENTATION.md
+NULLIFIER_SYSTEM.md

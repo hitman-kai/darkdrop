@@ -37,6 +37,7 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
     "@tailwindcss/postcss": "^4",
     "@types/bs58": "^4.0.4",
     "@types/node": "^20",
