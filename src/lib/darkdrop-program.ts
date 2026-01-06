@@ -425,7 +425,7 @@ export function createBatchCreateDropsInstruction(
     nullifierArray.set(nullifierBytes);
     
     const dropData = Buffer.alloc(32 + 32 + 8 + 1 + 8);
-    nullifierArray.copy(dropData, 0);
+    dropData.set(nullifierArray, 0);
     drop.recipient.toBuffer().copy(dropData, 32);
     dropData.writeBigUInt64LE(BigInt(drop.amount), 64);
     dropData.writeUInt8(drop.assetType, 72);
