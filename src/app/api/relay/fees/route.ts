@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     
     if (compressedSolAccounts.items) {
       for (const acc of compressedSolAccounts.items) {
-        const lamports = BigInt(acc.lamports || 0);
+        const lamports = BigInt(String(acc.lamports || 0));
         totalCompressedSol += lamports;
         solAccounts.push({
           hash: acc.hash.toString(),
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
         
         if (compressedUsdcAccounts.items) {
           for (const acc of compressedUsdcAccounts.items) {
-            const amount = BigInt(acc.parsed.amount);
+            const amount = BigInt(String(acc.parsed.amount));
             totalCompressedUsdc += amount;
             usdcAccounts.push({
               hash: acc.compressedAccount.hash.toString(),

@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
           }
           
           const totalLamports = compressedAccounts.items.reduce(
-            (sum, acc) => sum + BigInt(acc.lamports || 0),
+            (sum, acc) => sum + BigInt(String(acc.lamports || 0)),
             BigInt(0)
           );
           
@@ -169,7 +169,7 @@ export async function POST(req: NextRequest) {
           }
           
           const totalAmount = compressedAccounts.items.reduce(
-            (sum, acc) => sum + BigInt(acc.parsed.amount),
+            (sum, acc) => sum + BigInt(String(acc.parsed.amount)),
             BigInt(0)
           );
           

@@ -73,7 +73,7 @@ async function executeRelayedSolClaim(
   
   // 2. Calculate total and fee
   const totalLamports = compressedAccounts.items.reduce(
-    (sum, acc) => sum + BigInt(acc.lamports || 0), 
+    (sum, acc) => sum + BigInt(String(acc.lamports || 0)), 
     BigInt(0)
   );
   
@@ -175,7 +175,7 @@ async function executeRelayedUsdcClaim(
   
   // 3. Calculate total and fee
   const totalAmount = compressedTokenAccounts.items.reduce(
-    (sum, acc) => sum + BigInt(acc.parsed.amount),
+    (sum, acc) => sum + BigInt(String(acc.parsed.amount)),
     BigInt(0)
   );
   
@@ -292,7 +292,7 @@ async function executeRelayedUsdcClaim(
       
       if (feeAccounts.items && feeAccounts.items.length > 0) {
         const feeTotal = feeAccounts.items.reduce(
-          (sum, acc) => sum + BigInt(acc.parsed.amount),
+          (sum, acc) => sum + BigInt(String(acc.parsed.amount)),
           BigInt(0)
         );
         
