@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ShieldCheck, ShieldAlert } from "lucide-react";
+import { ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { 
+  Transaction, 
+  ComputeBudgetProgram, 
+  PublicKey, 
+  SystemProgram,
+  LAMPORTS_PER_SOL 
+} from "@solana/web3.js";
 
 import { DropCard } from "@/components/DropCard";
 import { QRDisplay } from "@/components/QRDisplay";
@@ -19,18 +26,25 @@ const FIXED_DENOMINATIONS = {
     { value: "10", label: "10" },
   ],
   usdc: [
-    { value: "1", label: "1" },
-    { value: "5", label: "5" },
-    { value: "10", label: "10" },
-    { value: "100", label: "100" },
+    { value: "1", label: "$1" },
+    { value: "5", label: "$5" },
+    { value: "10", label: "$10" },
+    { value: "100", label: "$100" },
   ],
+};
+
+type PoolInfo = {
+  online: boolean;
+  poolAddress: string | null;
+  denominations: { sol: string[]; usdc: string[] };
+  feeBps: number;
+  instructions: string;
 };
 
 type DepositResult = {
   claimCode: string;
   amount: string;
   asset: AssetSymbol;
-  signature: string;
 };
 
 export default function PoolDepositPage() {
@@ -42,8 +56,26 @@ export default function PoolDepositPage() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DepositResult | null>(null);
+  const [poolInfo, setPoolInfo] = useState<PoolInfo | null>(null);
+  const [loadingPool, setLoadingPool] = useState(true);
 
   const symbol = ASSETS[asset].symbol;
+
+  // Fetch pool info on mount
+  useEffect(() => {
+    async function fetchPoolInfo() {
+      try {
+        const res = await fetch("/api/pool/deposit");
+        const data = await res.json();
+        setPoolInfo(data);
+      } catch (e) {
+        console.error("Failed to fetch pool info:", e);
+      } finally {
+        setLoadingPool(false);
+      }
+    }
+    fetchPoolInfo();
+  }, []);
 
   const handleAssetChange = (next: AssetSymbol) => {
     setAsset(next);
@@ -56,20 +88,72 @@ export default function PoolDepositPage() {
       return;
     }
 
+    if (!poolInfo?.online || !poolInfo?.poolAddress) {
+      setError("DarkPool is not available yet.");
+      return;
+    }
+
     setProcessing(true);
     setError(null);
 
     try {
-      // TODO: Implement pool deposit
-      // 1. Call /api/pool/deposit to get pool address + instructions
-      // 2. User signs transaction to compress funds to pool
-      // 3. Server generates claim code and stores nullifier
-      // 4. Return claim code to user
+      const poolAddress = new PublicKey(poolInfo.poolAddress);
+      const lamports = Math.floor(parseFloat(amount) * LAMPORTS_PER_SOL);
 
-      // For now, show placeholder
-      setError("DarkPool deposit coming soon. Use regular drops for now.");
-      
+      // For now, only SOL is fully implemented
+      // USDC would require additional token transfer logic
+      if (asset !== "sol") {
+        setError("USDC deposits coming soon. Use SOL for now.");
+        setProcessing(false);
+        return;
+      }
+
+      // Build a simple SOL transfer to pool (will be compressed server-side)
+      // In production, this would use Light Protocol compress directly
+      const { blockhash } = await connection.getLatestBlockhash();
+      const tx = new Transaction();
+      tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }));
+      tx.add(
+        SystemProgram.transfer({
+          fromPubkey: publicKey,
+          toPubkey: poolAddress,
+          lamports,
+        })
+      );
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = publicKey;
+
+      // Send transaction
+      const signature = await sendTransaction(tx, connection);
+      await connection.confirmTransaction(signature, "confirmed");
+
+      console.log("[Pool Deposit] Transaction confirmed:", signature);
+
+      // Register deposit with server
+      const res = await fetch("/api/pool/deposit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount,
+          asset,
+          txSignature: signature,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to register deposit");
+      }
+
+      setResult({
+        claimCode: data.claimCode,
+        amount,
+        asset,
+      });
+
     } catch (err) {
+      console.error("[Pool Deposit] Error:", err);
       setError(err instanceof Error ? err.message : "Deposit failed");
     } finally {
       setProcessing(false);
@@ -81,6 +165,15 @@ export default function PoolDepositPage() {
     setError(null);
   };
 
+  if (loadingPool) {
+    return (
+      <div className="mx-auto flex max-w-4xl flex-col items-center justify-center gap-4 px-6 py-32">
+        <Loader2 size={24} className="animate-spin text-[var(--accent)]" />
+        <p className="text-xs tracking-[0.3em] text-[rgba(224,224,224,0.5)]">LOADING POOL STATUS</p>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-10 px-6 py-16">
       <div className="flex flex-col gap-4 text-sm text-[rgba(224,224,224,0.7)]">
@@ -90,6 +183,15 @@ export default function PoolDepositPage() {
         <p className="text-2xl font-semibold tracking-[0.3em] text-white">Shield Funds</p>
         <WalletConnectButton />
       </div>
+
+      {/* Pool Status */}
+      {poolInfo && !poolInfo.online && (
+        <div className="border border-[rgba(255,200,0,0.3)] bg-[rgba(255,200,0,0.05)] p-4">
+          <p className="text-xs text-[rgba(255,200,0,0.9)]">
+            DarkPool is not yet configured. Coming soon.
+          </p>
+        </div>
+      )}
 
       {!result ? (
         <DropCard
@@ -134,7 +236,7 @@ export default function PoolDepositPage() {
               ))}
             </div>
             <p className="text-[10px] text-[rgba(224,224,224,0.35)]">
-              Fixed amounts for privacy · prevents tracking
+              Fixed amounts prevent transaction correlation · 1% claim fee
             </p>
           </div>
 
@@ -142,7 +244,7 @@ export default function PoolDepositPage() {
           <div className="flex flex-wrap items-center gap-4 border border-[rgba(0,255,65,0.2)] p-4 text-xs">
             <ShieldCheck size={16} className="text-[var(--accent)]" />
             <p className="text-[rgba(224,224,224,0.7)]">
-              Funds will be compressed into the shared pool. You'll receive a claim code that can be used by anyone.
+              Funds flow to a shared pool. Claim code works from any wallet.
             </p>
           </div>
 
@@ -155,10 +257,16 @@ export default function PoolDepositPage() {
           <button
             type="button"
             onClick={handleDeposit}
-            disabled={processing || !connected}
-            className="w-full justify-center"
+            disabled={processing || !connected || !poolInfo?.online}
+            className="w-full justify-center disabled:opacity-50"
           >
-            {processing ? "PROCESSING..." : "DEPOSIT TO POOL"}
+            {processing ? (
+              <span className="flex items-center gap-2">
+                <Loader2 size={14} className="animate-spin" /> PROCESSING...
+              </span>
+            ) : (
+              "DEPOSIT TO POOL"
+            )}
           </button>
         </DropCard>
       ) : (
@@ -179,10 +287,12 @@ export default function PoolDepositPage() {
               </p>
             </div>
             <QRDisplay value={result.claimCode} label="CLAIM CODE" />
+            <p className="text-[10px] text-[rgba(224,224,224,0.4)]">
+              Anyone with this code can claim the funds. Treat it like cash.
+            </p>
           </div>
         </DropCard>
       )}
     </div>
   );
 }
-
