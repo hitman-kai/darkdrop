@@ -33,6 +33,20 @@ import { usePrivacyStore } from "@/store/privacy";
 
 const USDC_FEE_BUFFER_LAMPORTS = Math.round(0.002 * LAMPORTS_PER_SOL);
 
+// Fixed denominations for privacy (prevents amount correlation attacks)
+const FIXED_DENOMINATIONS = {
+  sol: [
+    { value: "0.1", label: "0.1 SOL" },
+    { value: "1", label: "1 SOL" },
+    { value: "10", label: "10 SOL" },
+  ],
+  usdc: [
+    { value: "1", label: "$1" },
+    { value: "10", label: "$10" },
+    { value: "100", label: "$100" },
+  ],
+};
+
 const explorerUrl = (signature: string) => {
   const base = `https://solscan.io/tx/${signature}`;
   return base;
@@ -55,7 +69,7 @@ export default function CreateDropPage() {
   const setPrivacyPending = usePrivacyStore((state) => state.setPending);
 
   const [asset, setAsset] = useState<AssetSymbol>(preferredAsset ?? DEFAULT_ASSET);
-  const [amount, setAmount] = useState("0.1");
+  const [amount, setAmount] = useState(FIXED_DENOMINATIONS[preferredAsset ?? DEFAULT_ASSET][0].value);
   const [password, setPassword] = useState("");
   const [ultraPrivateMode, setUltraPrivateMode] = useState(false);
   const [shielding, setShielding] = useState(false);
@@ -86,6 +100,8 @@ export default function CreateDropPage() {
   const handleAssetChange = (next: AssetSymbol) => {
     setAsset(next);
     setPreferredAsset(next);
+    // Reset to first fixed denomination for new asset
+    setAmount(FIXED_DENOMINATIONS[next][0].value);
   };
 
   useEffect(() => {
@@ -440,17 +456,30 @@ export default function CreateDropPage() {
             </button>
           ))}
         </div>
-        <label className="block text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
-          AMOUNT ({symbol})
-          <input
-            type="number"
-            step={asset === "sol" ? "0.0001" : "0.01"}
-            min="0"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-            className="mt-2 w-full"
-          />
-        </label>
+        <div className="flex flex-col gap-2">
+          <span className="text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
+            AMOUNT (FIXED FOR PRIVACY)
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {FIXED_DENOMINATIONS[asset].map((denom) => (
+              <button
+                key={denom.value}
+                type="button"
+                onClick={() => setAmount(denom.value)}
+                className={`border px-4 py-3 text-sm tracking-[0.2em] transition-all ${
+                  amount === denom.value
+                    ? "border-[var(--accent)] bg-[rgba(0,255,65,0.1)] text-[var(--accent)]"
+                    : "border-[rgba(0,255,65,0.2)] hover:border-[rgba(0,255,65,0.4)]"
+                }`}
+              >
+                {denom.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-[rgba(224,224,224,0.4)]">
+            Fixed amounts prevent correlation attacks. Everyone deposits the same amounts.
+          </p>
+        </div>
         <label className="block text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
           PASSWORD (OPTIONAL)
           <input

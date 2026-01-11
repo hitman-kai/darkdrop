@@ -11,12 +11,26 @@ function encodeClaimCode(keypair: Keypair): string {
   return `darkdrop_v2_${bs58.default.encode(keypair.secretKey)}`;
 }
 
+// Fixed denominations for privacy (prevents amount correlation attacks)
+const FIXED_DENOMINATIONS: Record<Asset, { value: string; label: string }[]> = {
+  SOL: [
+    { value: '0.1', label: '0.1 SOL' },
+    { value: '1', label: '1 SOL' },
+    { value: '10', label: '10 SOL' },
+  ],
+  USDC: [
+    { value: '1', label: '$1' },
+    { value: '10', label: '$10' },
+    { value: '100', label: '$100' },
+  ],
+};
+
 export default function TelegramDropPage() {
   const router = useRouter();
   const { showBackButton, hideBackButton, showMainButton, hideMainButton, haptic, alert, webApp } = useTelegram();
 
   const [asset, setAsset] = useState<Asset>('SOL');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(FIXED_DENOMINATIONS['SOL'][0].value);
   const [step, setStep] = useState<'input' | 'confirm' | 'sending' | 'success'>('input');
   const [claimCode, setClaimCode] = useState('');
   const [burnerAddress, setBurnerAddress] = useState('');
@@ -49,22 +63,9 @@ export default function TelegramDropPage() {
   }, [step]);
 
   const handleContinue = () => {
-    const numAmount = parseFloat(amount);
-    if (isNaN(numAmount) || numAmount <= 0) {
+    if (!amount) {
       haptic('error');
-      setError('ENTER A VALID AMOUNT');
-      return;
-    }
-
-    if (asset === 'SOL' && numAmount < 0.001) {
-      haptic('error');
-      setError('MINIMUM 0.001 SOL');
-      return;
-    }
-
-    if (asset === 'USDC' && numAmount < 0.01) {
-      haptic('error');
-      setError('MINIMUM 0.01 USDC');
+      setError('SELECT AN AMOUNT');
       return;
     }
 
@@ -125,16 +126,55 @@ export default function TelegramDropPage() {
         <TgHeader title="CREATE DROP" subtitle="Send privately" />
 
         <div className="tg-container">
-          <TgAssetSelect value={asset} onChange={setAsset} />
+          <TgAssetSelect value={asset} onChange={(newAsset) => {
+            setAsset(newAsset);
+            setAmount(FIXED_DENOMINATIONS[newAsset][0].value);
+          }} />
 
           <div className="tg-mt-16">
-            <label className="tg-label">AMOUNT</label>
-            <TgInput
-              type="number"
-              value={amount}
-              onChange={setAmount}
-              placeholder={asset === 'SOL' ? '0.00' : '0.00'}
-            />
+            <label className="tg-label">AMOUNT (FIXED FOR PRIVACY)</label>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+              {FIXED_DENOMINATIONS[asset].map((denom) => (
+                <button
+                  key={denom.value}
+                  type="button"
+                  onClick={() => {
+                    setAmount(denom.value);
+                    haptic('light');
+                  }}
+                  style={{
+                    flex: '1 1 0',
+                    minWidth: '80px',
+                    padding: '14px 12px',
+                    fontSize: '12px',
+                    fontFamily: 'var(--font-fira), monospace',
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    border: amount === denom.value 
+                      ? '1px solid var(--tg-accent)' 
+                      : '1px solid var(--tg-border)',
+                    backgroundColor: amount === denom.value 
+                      ? 'rgba(0, 255, 65, 0.1)' 
+                      : 'transparent',
+                    color: amount === denom.value 
+                      ? 'var(--tg-accent)' 
+                      : 'var(--tg-text)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {denom.label}
+                </button>
+              ))}
+            </div>
+            <p style={{ 
+              marginTop: '8px', 
+              fontSize: '10px', 
+              color: 'var(--tg-muted)',
+              letterSpacing: '0.05em'
+            }}>
+              FIXED AMOUNTS PREVENT TRACKING
+            </p>
           </div>
 
           {error && (
