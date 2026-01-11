@@ -1,78 +1,348 @@
 # DARKDROP
 
-Anonymous Solana dead drops  
-No address sharing · No direct on-chain link · Just a code
+```
+██████╗  █████╗ ██████╗ ██╗  ██╗██████╗ ██████╗  ██████╗ ██████╗ 
+██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔══██╗██╔══██╗██╔═══██╗██╔══██╗
+██║  ██║███████║██████╔╝█████╔╝ ██║  ██║██████╔╝██║   ██║██████╔╝
+██║  ██║██╔══██║██╔══██╗██╔═██╗ ██║  ██║██╔══██╗██║   ██║██╔═══╝ 
+██████╔╝██║  ██║██║  ██║██║  ██╗██████╔╝██║  ██║╚██████╔╝██║     
+╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝     
+```
 
-https://darkdrop.app
+**Anonymous Solana Transfers**
 
-## DESCRIPTION
+No address sharing. No on-chain link. Just a code.
 
-DarkDrop enables irreversible, anonymous value transfers on Solana mainnet using temporary burner keypairs.
+[![Live](https://img.shields.io/badge/status-live-brightgreen)]()
+[![Solana](https://img.shields.io/badge/network-mainnet-purple)]()
+[![License](https://img.shields.io/badge/license-MIT-blue)]()
 
-The sender funds a freshly generated keypair and receives a claim code (base58 private key or AES-encrypted variant).  
-The receiver imports the burner, sweeps funds to their main wallet, and the burner is discarded.
+**https://darkdrop.app**
 
-Operational privacy depends on sender using a disposable wallet for funding.  
-Mathematical privacy extensions (Token-2022 confidential transfers + Light Protocol) are on the public roadmap.
+---
 
-## FEATURES
+## Overview
 
-- SOL + cUSDC (Token-2022) support
-- Optional password-protected claim codes (AES-256, scrypt-derived)
-- QR + plaintext code generation
-- Temporary burner import with one-click sweep and purge
-- LocalStorage history (50 latest actions, per-browser)
-- Full PWA â€” installable, offline-capable
-- Mainnet-only · No devnet fallback
+DarkDrop enables private value transfers on Solana using zk-compression and burner keypairs. Sender and receiver never share addresses. The only link is a claim code transmitted off-chain.
 
-## ROADMAP
+---
 
-/roadmap https://darkdrop.app/roadmap
+## Architecture
 
-v1   Live (November 2025) Burner-based dead drops  
-v2   Q4 2025 / Q1 2026 Token-2022 confidential transfers + Light Protocol shielded drops  
-v3   2026 Time-locks · Duress mode · Tor mirror · Telegram Mini App
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              DARKDROP SYSTEM                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────┐      ┌─────────────┐      ┌─────────────┐                 │
+│  │   SENDER    │      │   RELAYER   │      │  RECEIVER   │                 │
+│  │   WALLET    │      │   SERVICE   │      │   WALLET    │                 │
+│  └──────┬──────┘      └──────┬──────┘      └──────┬──────┘                 │
+│         │                    │                    │                        │
+│         ▼                    │                    │                        │
+│  ┌─────────────┐             │                    │                        │
+│  │  COMPRESS   │─────────────┼────────────────────┤                        │
+│  │  (SHIELD)   │             │                    │                        │
+│  └──────┬──────┘             │                    │                        │
+│         │                    │                    │                        │
+│         ▼                    ▼                    │                        │
+│  ┌─────────────────────────────────┐              │                        │
+│  │         SHIELDED POOL           │              │                        │
+│  │    (Light Protocol Compressed)  │              │                        │
+│  │                                 │              │                        │
+│  │   ┌───┐ ┌───┐ ┌───┐ ┌───┐      │              │                        │
+│  │   │ 1 │ │ 1 │ │ 1 │ │ 1 │ SOL  │              │                        │
+│  │   └───┘ └───┘ └───┘ └───┘      │              │                        │
+│  └─────────────────┬───────────────┘              │                        │
+│                    │                              │                        │
+│                    ▼                              ▼                        │
+│             ┌─────────────┐              ┌─────────────┐                   │
+│             │ DECOMPRESS  │─────────────►│  RECEIVE    │                   │
+│             │ (UNSHIELD)  │              │  FUNDS      │                   │
+│             └─────────────┘              └─────────────┘                   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-## LOCAL DEVELOPMENT
+---
+
+## State Machines
+
+### Drop Creation Flow
+
+```
+                    ┌─────────────────┐
+                    │      IDLE       │
+                    └────────┬────────┘
+                             │ user selects amount
+                             ▼
+                    ┌─────────────────┐
+                    │ WALLET_CONNECT  │
+                    └────────┬────────┘
+                             │ wallet connected
+                             ▼
+                    ┌─────────────────┐
+                    │   COMPRESSING   │
+                    └────────┬────────┘
+                             │ tx confirmed
+                             ▼
+                    ┌─────────────────┐
+                    │  CODE_GENERATED │
+                    └────────┬────────┘
+                             │ user copies/shares
+                             ▼
+                    ┌─────────────────┐
+                    │    COMPLETE     │
+                    └─────────────────┘
+```
+
+### Claim Flow
+
+```
+                    ┌─────────────────┐
+                    │   CODE_INPUT    │
+                    └────────┬────────┘
+                             │ valid code entered
+                             ▼
+                    ┌─────────────────┐
+                    │   VALIDATING    │──────────┐
+                    └────────┬────────┘          │ invalid
+                             │ valid             ▼
+                             │          ┌─────────────────┐
+                             │          │     ERROR       │
+                             ▼          └─────────────────┘
+                    ┌─────────────────┐
+                    │ WALLET_CONNECT  │
+                    └────────┬────────┘
+                             │ wallet connected
+                             ▼
+                    ┌─────────────────┐
+                    │  DECOMPRESSING  │
+                    └────────┬────────┘
+                             │ tx confirmed
+                             ▼
+                    ┌─────────────────┐
+                    │    CLAIMED      │
+                    └─────────────────┘
+```
+
+### Nullifier State
+
+```
+    ┌──────────────┐         ┌──────────────┐
+    │   UNUSED     │────────►│    USED      │
+    └──────────────┘  claim  └──────────────┘
+           │                        │
+           │                        │
+           ▼                        ▼
+    (can be claimed)         (permanently spent)
+```
+
+---
+
+## Privacy Model
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      PRIVACY LAYERS                             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  LAYER 1: TRANSACTION PRIVACY                                   │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ • ZK Compression (Light Protocol)                        │   │
+│  │ • Fixed denominations (0.1, 0.5, 1, 10 SOL)             │   │
+│  │ • Shared pool (many deposits, many claims)               │   │
+│  │ • Nullifier system (prevents double-spend)               │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  LAYER 2: IDENTITY PRIVACY                                      │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ • No KYC required                                        │   │
+│  │ • Tor routing for RPC calls (planned)                    │   │
+│  │ • Burner wallets for operational security                │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  LAYER 3: CODE SECURITY                                         │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ • Optional AES-256 encryption (scrypt-derived key)       │   │
+│  │ • Client-side key generation                             │   │
+│  │ • No server-side key storage                             │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Supported Assets
+
+| Asset | Network | Denominations |
+|-------|---------|---------------|
+| SOL | Mainnet | 0.1, 0.5, 1, 10 |
+| USDC | Mainnet | 1, 5, 10, 100 |
+
+---
+
+## Claim Code Format
+
+```
+darkdrop:v2:[cluster]:[asset]:[mode]:[encryption]:[payload]
+
+Examples:
+├── darkdrop:v2:mainnet:sol:raw:5Kd3NBU...           (unencrypted)
+├── darkdrop:v2:mainnet:sol:aes:a1b2c3:Ux7mK...     (password protected)
+└── darkdrop:v2:mainnet:sol:compressed:raw:9Xm...   (zk-compressed)
+```
+
+---
+
+## Tech Stack
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  FRONTEND                                                       │
+│  ├── Next.js 15                                                 │
+│  ├── TypeScript                                                 │
+│  ├── TailwindCSS                                                │
+│  └── Solana Wallet Adapter                                      │
+├─────────────────────────────────────────────────────────────────┤
+│  BLOCKCHAIN                                                     │
+│  ├── Solana Mainnet                                             │
+│  ├── Light Protocol (zk-compression)                            │
+│  ├── SPL Token Program                                          │
+│  └── Token-2022 Program                                         │
+├─────────────────────────────────────────────────────────────────┤
+│  CRYPTOGRAPHY                                                   │
+│  ├── tweetnacl (Ed25519, XSalsa20-Poly1305)                    │
+│  ├── scrypt (key derivation)                                    │
+│  └── AES-256-GCM (optional encryption)                          │
+├─────────────────────────────────────────────────────────────────┤
+│  INFRASTRUCTURE                                                 │
+│  ├── Vercel (hosting)                                           │
+│  ├── Helius (RPC)                                               │
+│  └── Vercel KV (nullifier storage)                              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Project Structure
+
+```
+darkdrop/
+├── src/
+│   ├── app/
+│   │   ├── page.tsx                 # Landing page
+│   │   ├── drop/
+│   │   │   ├── create/page.tsx      # Create drop UI
+│   │   │   └── claim/page.tsx       # Claim drop UI
+│   │   ├── pool/                    # DarkPool (mixing pool)
+│   │   │   ├── deposit/page.tsx
+│   │   │   └── claim/page.tsx
+│   │   ├── api/
+│   │   │   ├── relay/               # Relayer endpoints
+│   │   │   ├── pool/                # Pool endpoints
+│   │   │   └── light-proxy/         # Light Protocol proxy
+│   │   └── tg/                      # Telegram Mini App
+│   ├── components/                  # UI components
+│   ├── lib/                         # Core logic
+│   │   ├── drop.ts                  # Drop creation/claim
+│   │   ├── pool.ts                  # Pool operations
+│   │   ├── encryption.ts            # AES encryption
+│   │   ├── nullifier.ts             # Nullifier system
+│   │   └── tokens.ts                # Asset configuration
+│   └── store/                       # State management
+├── programs/                        # Anchor programs
+│   ├── darkdrop/
+│   └── nullifier-registry/
+└── public/                          # Static assets
+```
+
+---
+
+## Local Development
 
 ```bash
 git clone https://github.com/hitman-kai/darkdrop.git
 cd darkdrop
 npm install
-npm run dev -- --hostname 0.0.0.0 --port 3000
+npm run dev
 ```
 
-Visit http://localhost:3000  
-Wallet must be set to mainnet.
+Open http://localhost:3000
 
-## PRODUCTION DEPLOYMENT
+---
+
+## Environment Variables
 
 ```bash
-npm run build
-npm run start -- --hostname 0.0.0.0 --port 4000
+# Required
+NEXT_PUBLIC_SOLANA_MAINNET_RPC=https://mainnet.helius-rpc.com/?api-key=xxx
+NEXT_PUBLIC_LIGHT_COMPRESSION_API=https://mainnet.helius-rpc.com/?api-key=xxx
+NEXT_PUBLIC_USDC_MAINNET_MINT=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+
+# Relayer (server-side)
+RELAYER_PRIVATE_KEY=base58_encoded_private_key
+
+# Optional
+NEXT_PUBLIC_USE_ONCHAIN_NULLIFIER=false
 ```
 
-Recommended: Vercel (current deployment method) or static export behind Nginx.
+---
 
-Environment variables (optional):
+## Roadmap
 
-- NEXT_PUBLIC_SOLANA_MAINNET_RPC   – Custom RPC endpoint (default: public fallback)
-- NEXT_PUBLIC_CUSDC_MAINNET_MINT   – Token-2022 cUSDC mint (required; set manually, falls back to legacy NEXT_PUBLIC_USDC_MAINNET_MINT if defined)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         ROADMAP                                 │
+├───────────┬─────────────────────────────────────────────────────┤
+│  VERSION  │  FEATURES                                           │
+├───────────┼─────────────────────────────────────────────────────┤
+│           │                                                     │
+│  v1.0     │  ✓ Burner-based drops                              │
+│  Nov 2025 │  ✓ SOL + USDC support                              │
+│           │  ✓ Password encryption                              │
+│           │  ✓ QR code generation                               │
+│           │                                                     │
+├───────────┼─────────────────────────────────────────────────────┤
+│           │                                                     │
+│  v2.0     │  ✓ Light Protocol integration                       │
+│  Jan 2026 │  ✓ ZK compression (shielded drops)                  │
+│           │  ✓ Relayer service (gas abstraction)                │
+│           │  ✓ Fixed denominations                              │
+│           │                                                     │
+├───────────┼─────────────────────────────────────────────────────┤
+│           │                                                     │
+│  v3.0     │  ○ DarkPool (mixing pool)                           │
+│  Q2 2026  │  ○ Time-delayed claims                              │
+│           │  ○ Tor RPC routing                                  │
+│           │  ○ Telegram Mini App                                │
+│           │                                                     │
+└───────────┴─────────────────────────────────────────────────────┘
+```
 
-Use Helius, QuickNode, or Triton for production traffic.
+---
 
-## SECURITY
+## Security
 
-Private keys are generated client-side and never leave the browser.  
-No server component exists. All encryption occurs in-memory using tweetnacl.
+- Private keys generated client-side only
+- Keys never transmitted to any server
+- AES encryption uses scrypt for key derivation
+- Nullifiers prevent double-spending
+- Open source and auditable
 
-Users are responsible for their own operational security.
+**Use at your own risk. No warranty provided.**
 
-No warranty. Use at your own risk.
+---
 
-## DEVELOPMENT PROTOCOL
+## License
 
-- `main` == production v1. Do not land experimental work here.
-- All Token-2022 / Light Protocol / confidential-transfer work must stay on the `v2-confidential` branch.
-- Every time you touch v2, update `DEV_FLOW.md` in the repo root with status + next steps so the next operator can resume.
-- Merge back into `main` only after v2 is complete, reviewed, and signed off for release.
+MIT
+
+---
+
+## Links
+
+- **App:** https://darkdrop.app
+- **GitHub:** https://github.com/hitman-kai/darkdrop
+- **Roadmap:** https://darkdrop.app/roadmap

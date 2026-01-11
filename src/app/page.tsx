@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, ScanLine } from "lucide-react";
+import { ArrowRight, ScanLine, ShieldCheck } from "lucide-react";
 
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 
@@ -39,6 +39,16 @@ export default function Home() {
             <ScanLine size={18} /> CLAIM DROP
           </Link>
         </div>
+
+        {/* DarkPool Link */}
+        <Link
+          href="/pool"
+          className="flex w-full items-center justify-center gap-3 border border-[rgba(0,255,65,0.2)] px-8 py-3 text-xs tracking-[0.4em] transition-all hover:border-[var(--accent)] hover:bg-[rgba(0,255,65,0.05)]"
+        >
+          <ShieldCheck size={16} className="text-[var(--accent)]" />
+          <span>DARKPOOL</span>
+          <span className="text-[10px] text-[rgba(224,224,224,0.4)]">MIXING POOL · COMING SOON</span>
+        </Link>
 
         <div className="grid grid-cols-1 gap-4 text-left text-sm text-[rgba(224,224,224,0.65)] md:grid-cols-3">
           <div className="border border-[rgba(0,255,65,0.2)] bg-black/40 p-4">
