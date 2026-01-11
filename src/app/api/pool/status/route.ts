@@ -38,11 +38,13 @@ export async function GET() {
     // Get pool keypair
     let poolKeypair: Keypair;
     try {
-      poolKeypair = Keypair.fromSecretKey(bs58.decode(poolKeypairB58));
-    } catch {
+      const decode = bs58.decode || bs58.default?.decode;
+      if (!decode) throw new Error("bs58 decode not available");
+      poolKeypair = Keypair.fromSecretKey(decode(poolKeypairB58.trim()));
+    } catch (e) {
       return NextResponse.json({
         online: false,
-        message: "Invalid pool keypair configuration",
+        message: `Invalid pool keypair: ${e instanceof Error ? e.message : "parse error"}`,
         poolAddress: null,
         balances: { sol: "0", usdc: "0" },
         stats: { totalDeposits: 0, totalClaims: 0, pendingClaims: 0 },

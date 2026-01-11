@@ -127,7 +127,9 @@ export async function POST(request: NextRequest) {
         { status: 503 }
       );
     }
-    const poolKeypair = Keypair.fromSecretKey(bs58.decode(poolKeypairB58));
+    const decode = bs58.decode || bs58.default?.decode;
+    if (!decode) throw new Error("bs58 decode not available");
+    const poolKeypair = Keypair.fromSecretKey(decode(poolKeypairB58.trim()));
 
     // Setup RPC connection
     const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_MAINNET_RPC || "https://api.mainnet-beta.solana.com";
