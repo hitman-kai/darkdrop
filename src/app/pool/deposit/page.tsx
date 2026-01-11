@@ -8,9 +8,11 @@ import {
   Transaction, 
   ComputeBudgetProgram, 
   PublicKey, 
-  SystemProgram,
   LAMPORTS_PER_SOL 
 } from "@solana/web3.js";
+import { createRpc, bn } from "@lightprotocol/stateless.js";
+import { LightSystemProgram, selectStateTreeInfo } from "@lightprotocol/stateless.js";
+import BN from "bn.js";
 
 import { DropCard } from "@/components/DropCard";
 import { QRDisplay } from "@/components/QRDisplay";
@@ -54,6 +56,7 @@ export default function PoolDepositPage() {
   const [asset, setAsset] = useState<AssetSymbol>(DEFAULT_ASSET);
   const [amount, setAmount] = useState(FIXED_DENOMINATIONS[DEFAULT_ASSET][0].value);
   const [processing, setProcessing] = useState(false);
+  const [compressing, setCompressing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DepositResult | null>(null);
   const [poolInfo, setPoolInfo] = useState<PoolInfo | null>(null);
@@ -93,43 +96,62 @@ export default function PoolDepositPage() {
       return;
     }
 
+    // Only SOL for now
+    if (asset !== "sol") {
+      setError("USDC deposits coming soon. Use SOL for now.");
+      return;
+    }
+
     setProcessing(true);
+    setCompressing(true);
     setError(null);
 
     try {
       const poolAddress = new PublicKey(poolInfo.poolAddress);
       const lamports = Math.floor(parseFloat(amount) * LAMPORTS_PER_SOL);
+      const amountBN = new BN(lamports);
 
-      // For now, only SOL is fully implemented
-      // USDC would require additional token transfer logic
-      if (asset !== "sol") {
-        setError("USDC deposits coming soon. Use SOL for now.");
-        setProcessing(false);
-        return;
-      }
+      console.log("[Pool Deposit] Compressing SOL to pool:", {
+        amount,
+        lamports,
+        poolAddress: poolAddress.toBase58(),
+      });
 
-      // Build a simple SOL transfer to pool (will be compressed server-side)
-      // In production, this would use Light Protocol compress directly
+      // Create RPC for Light Protocol
+      const compressionApi = process.env.NEXT_PUBLIC_LIGHT_COMPRESSION_API;
+      const rpc = compressionApi 
+        ? createRpc(connection, compressionApi)
+        : createRpc(connection);
+
+      // Get state tree info for compression
+      const stateTreeInfos = await rpc.getStateTreeInfos();
+      const outputStateTreeInfo = selectStateTreeInfo(stateTreeInfos);
+
+      // Build compress instruction - compress SOL directly to pool wallet
+      const compressIx = await LightSystemProgram.compress({
+        payer: publicKey,
+        toAddress: poolAddress, // Compress directly to pool
+        lamports: amountBN,
+        outputStateTreeInfo,
+      });
+
+      // Build transaction
       const { blockhash } = await connection.getLatestBlockhash();
       const tx = new Transaction();
-      tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }));
-      tx.add(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: poolAddress,
-          lamports,
-        })
-      );
+      tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 1_000_000 }));
+      tx.add(compressIx);
       tx.recentBlockhash = blockhash;
       tx.feePayer = publicKey;
 
+      setCompressing(false);
+      
       // Send transaction
       const signature = await sendTransaction(tx, connection);
       await connection.confirmTransaction(signature, "confirmed");
 
-      console.log("[Pool Deposit] Transaction confirmed:", signature);
+      console.log("[Pool Deposit] Compression confirmed:", signature);
 
-      // Register deposit with server
+      // Register deposit with server to get claim code
       const res = await fetch("/api/pool/deposit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -157,6 +179,7 @@ export default function PoolDepositPage() {
       setError(err instanceof Error ? err.message : "Deposit failed");
     } finally {
       setProcessing(false);
+      setCompressing(false);
     }
   };
 
@@ -196,7 +219,7 @@ export default function PoolDepositPage() {
       {!result ? (
         <DropCard
           title="DEPOSIT TO POOL"
-          subtitle="Select a fixed amount to deposit. You'll receive a claim code."
+          subtitle="Compress funds directly into the shielded pool. Receive a claim code."
         >
           {/* Asset Selection */}
           <div className="flex flex-wrap gap-2 text-xs">
@@ -244,7 +267,7 @@ export default function PoolDepositPage() {
           <div className="flex flex-wrap items-center gap-4 border border-[rgba(0,255,65,0.2)] p-4 text-xs">
             <ShieldCheck size={16} className="text-[var(--accent)]" />
             <p className="text-[rgba(224,224,224,0.7)]">
-              Funds flow to a shared pool. Claim code works from any wallet.
+              Funds are ZK-compressed into the shielded pool. Claim code works from any wallet.
             </p>
           </div>
 
@@ -262,7 +285,8 @@ export default function PoolDepositPage() {
           >
             {processing ? (
               <span className="flex items-center gap-2">
-                <Loader2 size={14} className="animate-spin" /> PROCESSING...
+                <Loader2 size={14} className="animate-spin" /> 
+                {compressing ? "COMPRESSING..." : "REGISTERING..."}
               </span>
             ) : (
               "DEPOSIT TO POOL"
@@ -283,7 +307,7 @@ export default function PoolDepositPage() {
             <div className="flex flex-wrap items-center gap-3 text-xs text-[rgba(224,224,224,0.7)]">
               <ShieldCheck size={16} className="text-[var(--accent)]" />
               <p>
-                {result.amount} {ASSETS[result.asset].symbol} deposited to pool
+                {result.amount} {ASSETS[result.asset].symbol} compressed to pool
               </p>
             </div>
             <QRDisplay value={result.claimCode} label="CLAIM CODE" />
