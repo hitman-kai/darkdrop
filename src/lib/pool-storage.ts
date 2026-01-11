@@ -171,8 +171,12 @@ export function getPoolKeypairBase58(): string | null {
  */
 export function isPoolConfigured(): boolean {
   // Check for required env vars
+  // Support both Vercel KV names and Upstash names
   const hasKeypair = !!process.env.DARKPOOL_KEYPAIR;
-  const hasKV = !!process.env.KV_REST_API_URL && !!process.env.KV_REST_API_TOKEN;
+  const hasKV = !!(
+    (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) ||
+    (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+  );
   
   return hasKeypair && hasKV;
 }
