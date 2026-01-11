@@ -81,7 +81,8 @@ export async function POST(request: NextRequest) {
         { status: 503 }
       );
     }
-    const decode = bs58.decode || bs58.default?.decode;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const decode = (bs58 as any).decode || (bs58 as any).default?.decode;
     if (!decode) throw new Error("bs58 decode not available");
     const poolKeypair = Keypair.fromSecretKey(decode(poolKeypairB58.trim()));
 
@@ -167,7 +168,8 @@ export async function GET() {
 
     if (poolKeypairB58) {
       try {
-        const decode = bs58.decode || bs58.default?.decode;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const decode = (bs58 as any).decode || (bs58 as any).default?.decode;
         if (!decode) throw new Error("bs58 decode not available");
         const poolKeypair = Keypair.fromSecretKey(decode(poolKeypairB58.trim()));
         poolAddress = poolKeypair.publicKey.toBase58();
