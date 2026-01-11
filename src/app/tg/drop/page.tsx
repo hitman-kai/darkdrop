@@ -14,14 +14,16 @@ function encodeClaimCode(keypair: Keypair): string {
 // Fixed denominations for privacy (prevents amount correlation attacks)
 const FIXED_DENOMINATIONS: Record<Asset, { value: string; label: string }[]> = {
   SOL: [
-    { value: '0.1', label: '0.1 SOL' },
-    { value: '1', label: '1 SOL' },
-    { value: '10', label: '10 SOL' },
+    { value: '0.1', label: '0.1' },
+    { value: '0.5', label: '0.5' },
+    { value: '1', label: '1' },
+    { value: '10', label: '10' },
   ],
   USDC: [
-    { value: '1', label: '$1' },
-    { value: '10', label: '$10' },
-    { value: '100', label: '$100' },
+    { value: '1', label: '1' },
+    { value: '5', label: '5' },
+    { value: '10', label: '10' },
+    { value: '100', label: '100' },
   ],
 };
 
@@ -132,8 +134,8 @@ export default function TelegramDropPage() {
           }} />
 
           <div className="tg-mt-16">
-            <label className="tg-label">AMOUNT (FIXED FOR PRIVACY)</label>
-            <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+            <label className="tg-label">AMOUNT · {asset}</label>
+            <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
               {FIXED_DENOMINATIONS[asset].map((denom) => (
                 <button
                   key={denom.value}
@@ -143,13 +145,11 @@ export default function TelegramDropPage() {
                     haptic('light');
                   }}
                   style={{
-                    flex: '1 1 0',
-                    minWidth: '80px',
-                    padding: '14px 12px',
-                    fontSize: '12px',
+                    flex: '1',
+                    padding: '10px 8px',
+                    fontSize: '11px',
                     fontFamily: 'var(--font-fira), monospace',
-                    letterSpacing: '0.1em',
-                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
                     border: amount === denom.value 
                       ? '1px solid var(--tg-accent)' 
                       : '1px solid var(--tg-border)',
@@ -168,12 +168,12 @@ export default function TelegramDropPage() {
               ))}
             </div>
             <p style={{ 
-              marginTop: '8px', 
-              fontSize: '10px', 
+              marginTop: '6px', 
+              fontSize: '9px', 
               color: 'var(--tg-muted)',
-              letterSpacing: '0.05em'
+              letterSpacing: '0.03em'
             }}>
-              FIXED AMOUNTS PREVENT TRACKING
+              FIXED FOR PRIVACY
             </p>
           </div>
 

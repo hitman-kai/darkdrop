@@ -36,14 +36,16 @@ const USDC_FEE_BUFFER_LAMPORTS = Math.round(0.002 * LAMPORTS_PER_SOL);
 // Fixed denominations for privacy (prevents amount correlation attacks)
 const FIXED_DENOMINATIONS = {
   sol: [
-    { value: "0.1", label: "0.1 SOL" },
-    { value: "1", label: "1 SOL" },
-    { value: "10", label: "10 SOL" },
+    { value: "0.1", label: "0.1" },
+    { value: "0.5", label: "0.5" },
+    { value: "1", label: "1" },
+    { value: "10", label: "10" },
   ],
   usdc: [
-    { value: "1", label: "$1" },
-    { value: "10", label: "$10" },
-    { value: "100", label: "$100" },
+    { value: "1", label: "1" },
+    { value: "5", label: "5" },
+    { value: "10", label: "10" },
+    { value: "100", label: "100" },
   ],
 };
 
@@ -458,15 +460,15 @@ export default function CreateDropPage() {
         </div>
         <div className="flex flex-col gap-2">
           <span className="text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
-            AMOUNT (FIXED FOR PRIVACY)
+            AMOUNT · {symbol}
           </span>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-1.5">
             {FIXED_DENOMINATIONS[asset].map((denom) => (
               <button
                 key={denom.value}
                 type="button"
                 onClick={() => setAmount(denom.value)}
-                className={`border px-4 py-3 text-sm tracking-[0.2em] transition-all ${
+                className={`border px-3 py-2 text-xs tracking-[0.15em] transition-all ${
                   amount === denom.value
                     ? "border-[var(--accent)] bg-[rgba(0,255,65,0.1)] text-[var(--accent)]"
                     : "border-[rgba(0,255,65,0.2)] hover:border-[rgba(0,255,65,0.4)]"
@@ -476,8 +478,8 @@ export default function CreateDropPage() {
               </button>
             ))}
           </div>
-          <p className="text-xs text-[rgba(224,224,224,0.4)]">
-            Fixed amounts prevent correlation attacks. Everyone deposits the same amounts.
+          <p className="text-[10px] text-[rgba(224,224,224,0.35)]">
+            Fixed amounts for privacy · prevents tracking
           </p>
         </div>
         <label className="block text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
