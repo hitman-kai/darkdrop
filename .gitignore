@@ -40,8 +40,42 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# analysis documents (not for commit)
+# Rust/Anchor build artifacts
+/target/
+
+# Lockfiles (use npm, not pnpm)
+pnpm-lock.yaml
+
+# Dev scripts (not needed in repo)
+*.ps1
+check-*.ts
+test-*.ts
+verify-*.ts
+
+# Documentation (keep README.md only)
 CUSTOM_PROGRAM_ANALYSIS.md
 PRIVACY_CUSTOM_PROGRAM.md
 ONCHAIN_NULLIFIER_IMPLEMENTATION.md
 NULLIFIER_SYSTEM.md
+BUILD_*.md
+DEPLOY_*.md
+DEV_*.md
+HANDOFF_*.md
+IMPLEMENTATION_*.md
+LIGHT_PROTOCOL_*.md
+MAINNET_*.md
+MANUAL_*.md
+NEXT_AGENT_*.md
+PROJECT_*.md
+QUICK_*.md
+WHERE_TO_*.md
+
+# Docker files (not needed for Vercel deployment)
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Other unnecessary files
+.relayer-fees.json
+.vercel-deploy
+pnpmfile.cjs
