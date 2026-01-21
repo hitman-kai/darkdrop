@@ -47,7 +47,7 @@ export default function Home() {
         >
           <ShieldCheck size={16} className="text-[var(--accent)]" />
           <span>DARKPOOL</span>
-          <span className="text-[10px] text-[rgba(224,224,224,0.4)]">MIXING POOL · COMING SOON</span>
+                        <span className="text-[10px] text-[rgba(224,224,224,0.4)]">MIXING POOL · LIVE</span>
         </Link>
 
         <div className="grid grid-cols-1 gap-4 text-left text-sm text-[rgba(224,224,224,0.65)] md:grid-cols-3">

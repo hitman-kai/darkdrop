@@ -22,7 +22,7 @@ export async function GET() {
     if (!configured || !poolKeypairB58) {
       return NextResponse.json({
         online: false,
-        message: "DarkPool coming soon. Pool keypair or KV not configured.",
+        message: "DarkPool offline. Pool keypair or KV not configured.",
         poolAddress: null,
         balances: { sol: "0", usdc: "0" },
         stats: {
