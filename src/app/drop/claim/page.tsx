@@ -69,7 +69,7 @@ export default function ClaimDropPage() {
 
   const fetchBalance = async (
     keypair: Keypair,
-    asset: AssetSymbol,
+    asset: AssetSymbol | "spl",
     dropCluster: ClusterType,
     options?: { compressed?: boolean; mint?: string }
   ) => {
