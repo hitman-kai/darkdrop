@@ -4,7 +4,8 @@ import { clusterApiUrl } from "@solana/web3.js";
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
 export type ClusterType = "mainnet";
-export type AssetSymbol = "sol" | "usdc";
+export type CoreAssetSymbol = "sol" | "usdc";
+export type AssetSymbol = CoreAssetSymbol | "spl";
 
 export const CLUSTER_LABELS: Record<ClusterType, string> = {
   mainnet: "Mainnet",
@@ -46,7 +47,7 @@ type AssetMeta =
       program: "token" | "token-2022";
     };
 
-export const ASSETS: Record<AssetSymbol, AssetMeta> = {
+export const ASSETS: Record<CoreAssetSymbol, AssetMeta> = {
   sol: {
     symbol: "SOL",
     label: "Solana",
@@ -63,22 +64,29 @@ export const ASSETS: Record<AssetSymbol, AssetMeta> = {
   },
 };
 
-export const assetList: AssetSymbol[] = ["sol", "usdc"];
+export const assetList: CoreAssetSymbol[] = ["sol", "usdc"];
 export const clusterList: ClusterType[] = ["mainnet"];
 
 export const getRpcEndpoint = (cluster: ClusterType) => RPC_ENDPOINTS[cluster];
 
-export const getAssetDecimals = (asset: AssetSymbol) => ASSETS[asset].decimals;
+export const getAssetDecimals = (asset: AssetSymbol) =>
+  asset === "spl" ? 0 : ASSETS[asset].decimals;
 
-export const getAssetSymbol = (asset: AssetSymbol) => ASSETS[asset].symbol;
+export const getAssetSymbol = (asset: AssetSymbol) =>
+  asset === "spl" ? "SPL" : ASSETS[asset].symbol;
+
+export const getAssetLabel = (asset: AssetSymbol) =>
+  asset === "spl" ? "Custom SPL" : ASSETS[asset].label;
 
 export const getAssetMint = (asset: AssetSymbol, cluster: ClusterType): string | null => {
+  if (asset === "spl") return null;
   const meta = ASSETS[asset];
   if (meta.kind === "native") return null;
   return meta.mint[cluster];
 };
 
 export const getAssetProgramId = (asset: AssetSymbol) => {
+  if (asset === "spl") return null;
   const meta = ASSETS[asset];
   if (meta.kind === "native") return null;
   return meta.program === "token-2022" ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID;
