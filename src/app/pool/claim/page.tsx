@@ -140,7 +140,7 @@ export default function PoolClaimPage() {
       {poolStatus && !poolStatus.online && (
         <div className="border border-[rgba(255,200,0,0.3)] bg-[rgba(255,200,0,0.05)] p-4">
           <p className="text-xs text-[rgba(255,200,0,0.9)]">
-            DarkPool is not yet configured. Coming soon.
+            DarkPool is not configured. Configure the pool to enable claims.
           </p>
         </div>
       )}

@@ -50,7 +50,7 @@ const sections = [
             <ul className="list-disc space-y-1 pl-4 text-sm text-[rgba(224,224,224,0.75)]">
               <li>No KYC or account required</li>
               <li>Burner wallets for operational security</li>
-              <li>Tor RPC routing (coming in v3)</li>
+              <li>Tor RPC routing (planned)</li>
             </ul>
           </div>
           <div className="border-l-2 border-[rgba(224,224,224,0.3)] pl-4">

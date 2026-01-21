@@ -186,7 +186,7 @@ export async function GET() {
       feeBps: POOL_CONFIG.FEE_BPS,
       instructions: online 
         ? "Compress funds to the pool address, then call POST /api/pool/deposit with the transaction signature."
-        : "DarkPool is not yet configured. Coming soon.",
+        : "DarkPool is not configured. Configure the pool to enable deposits.",
     });
 
   } catch (error) {
