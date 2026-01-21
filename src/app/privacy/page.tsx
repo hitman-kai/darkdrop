@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 export const metadata = {
   title: "DarkDrop Privacy Policy",
@@ -49,7 +50,7 @@ support@darkdrop.app
 `;
 
 function renderInline(text: string) {
-  const parts: Array<string | JSX.Element> = [];
+  const parts: Array<string | ReactNode> = [];
   const regex = /\*\*(.+?)\*\*/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
