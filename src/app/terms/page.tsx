@@ -37,26 +37,51 @@ To the maximum extent permitted by law, DarkDrop contributors are not liable for
 support@darkdrop.app
 `;
 
+function renderInline(text: string) {
+  const parts: Array<string | JSX.Element> = [];
+  const regex = /\*\*(.+?)\*\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    parts.push(
+      <strong key={`${match.index}-${match[1]}`} className="text-white">
+        {match[1]}
+      </strong>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts;
+}
+
 function renderMarkdown(text: string) {
   return text.split("\n").map((line, idx) => {
     if (line.startsWith("# ")) {
       return (
         <h1 key={idx} className="text-2xl font-semibold tracking-[0.2em] text-white">
-          {line.replace("# ", "")}
+          {renderInline(line.replace("# ", ""))}
         </h1>
       );
     }
     if (line.startsWith("## ")) {
       return (
         <h2 key={idx} className="text-sm tracking-[0.4em] text-[var(--accent)]">
-          {line.replace("## ", "")}
+          {renderInline(line.replace("## ", ""))}
         </h2>
       );
     }
     if (line.startsWith("- ")) {
       return (
         <li key={idx} className="ml-6 list-disc text-sm text-[rgba(224,224,224,0.85)]">
-          {line.replace("- ", "")}
+          {renderInline(line.replace("- ", ""))}
         </li>
       );
     }
@@ -65,7 +90,7 @@ function renderMarkdown(text: string) {
     }
     return (
       <p key={idx} className="text-sm text-[rgba(224,224,224,0.85)]">
-        {line}
+        {renderInline(line)}
       </p>
     );
   });
