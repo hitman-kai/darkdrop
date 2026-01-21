@@ -76,6 +76,12 @@ export default function Home() {
             <Link href="/roadmap" className={navLinkClass}>
               ROADMAP
             </Link>
+            <Link href="/privacy" className={navLinkClass}>
+              PRIVACY
+            </Link>
+            <Link href="/terms" className={navLinkClass}>
+              TERMS
+            </Link>
           </div>
           <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[var(--accent)]">
             v2 live - ZK compression via Light Protocol
