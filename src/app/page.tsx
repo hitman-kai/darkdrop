@@ -86,6 +86,9 @@ export default function Home() {
           <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[var(--accent)]">
             v2 live - ZK compression via Light Protocol
           </p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[rgba(224,224,224,0.7)]">
+            CONTRACT: 6wKRRP1c2gkWESch723bmgCWiBYiYvn4krspZXdApump
+          </p>
           <Link
             href="https://x.com/darkdrop_sol"
             target="_blank"
