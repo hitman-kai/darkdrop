@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { createAssociatedTokenAccountInstruction, createTransferInstruction, getAssociatedTokenAddress } from "@solana/spl-token";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
@@ -14,6 +15,7 @@ import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { unitsToAmount } from "@/lib/amount";
 import { claimDrop, unshieldDrop } from "@/lib/drop";
 import { AssetSymbol, ClusterType, CLUSTER_LABELS, getAssetDecimals, getAssetMint, getAssetProgramId, getAssetSymbol } from "@/lib/tokens";
+import { fetchSplMetadata, getMintProgram, type SplTokenMeta } from "@/lib/spl";
 import { generateNullifier, getNullifierRegistry } from "@/lib/nullifier";
 import { createRpc } from "@lightprotocol/stateless.js";
 import BN from "bn.js";
@@ -30,6 +32,8 @@ type BurnerState = {
   cluster: ClusterType;
   shielded?: boolean;
   compressed?: boolean;
+  mint?: string;
+  tokenMeta?: SplTokenMeta | null;
 };
 
 const DUST_THRESHOLD = 5_000n;
@@ -37,6 +41,7 @@ const DUST_THRESHOLD = 5_000n;
 export default function ClaimDropPage() {
   const { connection } = useConnection();
   const { publicKey: mainWallet, sendTransaction } = useWallet();
+  const searchParams = useSearchParams();
   const setBurner = useBurnerStore((state) => state.setBurner);
   const updateDropStatus = useHistoryStore((state) => state.updateDropStatus);
   const addClaimedDrop = useHistoryStore((state) => state.addClaimedDrop);
@@ -55,9 +60,21 @@ export default function ClaimDropPage() {
   const [customDestination, setCustomDestination] = useState("");
   const [relayerStatus, setRelayerStatus] = useState<{ online: boolean; fee: number } | null>(null);
 
-  const fetchBalance = async (keypair: Keypair, asset: AssetSymbol, dropCluster: ClusterType, compressed?: boolean) => {
+  useEffect(() => {
+    const codeParam = searchParams.get("code");
+    if (codeParam && !claimCode) {
+      setClaimCode(codeParam);
+    }
+  }, [searchParams, claimCode]);
+
+  const fetchBalance = async (
+    keypair: Keypair,
+    asset: AssetSymbol,
+    dropCluster: ClusterType,
+    options?: { compressed?: boolean; mint?: string }
+  ) => {
     // Handle compressed tokens/SOL
-    if (compressed) {
+    if (options?.compressed) {
       const compressionApiEndpoint = process.env.NEXT_PUBLIC_LIGHT_COMPRESSION_API;
       const rpc = compressionApiEndpoint 
         ? createRpc(connection, compressionApiEndpoint)
@@ -88,6 +105,15 @@ export default function ClaimDropPage() {
       const lamports = await connection.getBalance(keypair.publicKey, "confirmed");
       return BigInt(lamports);
     }
+    if (asset === "spl") {
+      if (!options?.mint) return 0n;
+      const mint = new PublicKey(options.mint);
+      const tokenProgramId = await getMintProgram(connection, options.mint);
+      const ata = await getAssociatedTokenAddress(mint, keypair.publicKey, true, tokenProgramId);
+      const info = await connection.getTokenAccountBalance(ata).catch(() => null);
+      if (!info?.value?.amount) return 0n;
+      return BigInt(info.value.amount);
+    }
     const mintAddress = getAssetMint(asset, dropCluster);
     const tokenProgramId = getAssetProgramId(asset);
     if (!mintAddress || !tokenProgramId) return 0n;
@@ -110,6 +136,14 @@ export default function ClaimDropPage() {
       if (parsed.cluster !== cluster) {
         setError(`Drop was created on ${CLUSTER_LABELS[parsed.cluster]}, which DarkDrop no longer supports.`);
         return;
+      }
+
+      let tokenMeta: SplTokenMeta | null = null;
+      if (parsed.asset === "spl") {
+        if (!parsed.mint) {
+          throw new Error("Missing SPL mint in claim code.");
+        }
+        tokenMeta = await fetchSplMetadata(connection, parsed.mint);
       }
 
       const support = getConfidentialSupport(parsed.asset);
@@ -140,7 +174,7 @@ export default function ClaimDropPage() {
 
       // Handle compressed token drops
       if (parsed.compressed) {
-        const balance = await fetchBalance(parsed.keypair, parsed.asset, parsed.cluster, true);
+        const balance = await fetchBalance(parsed.keypair, parsed.asset, parsed.cluster, { compressed: true });
         setBurner(parsed.keypair);
         setBurnerState({
           keypair: parsed.keypair,
@@ -148,13 +182,17 @@ export default function ClaimDropPage() {
           asset: parsed.asset,
           cluster: parsed.cluster,
           compressed: true,
+          mint: parsed.mint,
+          tokenMeta,
         });
         setStatus("Compressed token drop loaded. Ready to decompress.");
         setConfidentialNotes(["Compressed Token Drop · Amounts hidden via zk-compression"]);
         return;
       }
 
-      const balance = await fetchBalance(parsed.keypair, parsed.asset, parsed.cluster);
+      const balance = await fetchBalance(parsed.keypair, parsed.asset, parsed.cluster, {
+        mint: parsed.mint,
+      });
       setBurner(parsed.keypair);
       setBurnerState({
         keypair: parsed.keypair,
@@ -162,6 +200,8 @@ export default function ClaimDropPage() {
         asset: parsed.asset,
         cluster: parsed.cluster,
         shielded: false,
+        mint: parsed.mint,
+        tokenMeta,
       });
       setStatus("Burner imported. Ready to sweep.");
     } catch (loadError) {
@@ -173,7 +213,10 @@ export default function ClaimDropPage() {
 
   const refreshBalance = async () => {
     if (!burner) return;
-    const balance = await fetchBalance(burner.keypair, burner.asset, burner.cluster, burner.compressed);
+    const balance = await fetchBalance(burner.keypair, burner.asset, burner.cluster, {
+      compressed: burner.compressed,
+      mint: burner.mint,
+    });
     setBurnerState({ ...burner, balance });
   };
 
@@ -236,7 +279,8 @@ export default function ClaimDropPage() {
       return;
     }
 
-    const decimals = getAssetDecimals(burner.asset);
+    const decimals =
+      burner.asset === "spl" ? burner.tokenMeta?.decimals ?? 0 : getAssetDecimals(burner.asset);
 
     if (burner.asset === "sol" && burner.balance <= DUST_THRESHOLD) {
       setError("Nothing to sweep.");
@@ -245,6 +289,10 @@ export default function ClaimDropPage() {
 
     if (burner.asset === "usdc" && burner.balance <= 0n) {
       setError("No USDC remaining to sweep.");
+      return;
+    }
+    if (burner.asset === "spl" && burner.balance <= 0n) {
+      setError("No SPL tokens remaining to sweep.");
       return;
     }
 
@@ -266,7 +314,7 @@ export default function ClaimDropPage() {
     setError(null);
 
     try {
-      if (burner.asset === "sol") {
+    if (burner.asset === "sol") {
         const lamports = burner.balance - DUST_THRESHOLD;
         if (lamports <= 0n) throw new Error("Not enough SOL to cover fees.");
         const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
@@ -296,6 +344,48 @@ export default function ClaimDropPage() {
           address: burner.keypair.publicKey.toBase58(),
           amount: unitsToAmount(lamports, decimals, 6),
           asset: burner.asset,
+          cluster: burner.cluster,
+          signature,
+          claimedAt: new Date().toISOString(),
+        });
+    } else {
+      if (burner.asset === "spl") {
+        if (!burner.mint) throw new Error("Missing SPL mint.");
+        const mint = new PublicKey(burner.mint);
+        const tokenProgramId = await getMintProgram(connection, burner.mint);
+        const sourceAta = await getAssociatedTokenAddress(mint, burner.keypair.publicKey, true, tokenProgramId);
+        const destAta = await getAssociatedTokenAddress(mint, mainWallet, true, tokenProgramId);
+        const instructions = [];
+        const destInfo = await connection.getAccountInfo(destAta);
+        if (!destInfo) {
+          instructions.push(createAssociatedTokenAccountInstruction(mainWallet, destAta, mainWallet, mint, tokenProgramId));
+        }
+  
+        instructions.push(
+          createTransferInstruction(sourceAta, destAta, burner.keypair.publicKey, Number(burner.balance), [], tokenProgramId)
+        );
+  
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+        const tx = new Transaction().add(...instructions);
+        tx.recentBlockhash = blockhash;
+        tx.feePayer = burner.keypair.publicKey;
+        tx.sign(burner.keypair);
+        const signature = await connection.sendRawTransaction(tx.serialize());
+        await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
+  
+        if (!burner.compressed) {
+          const nullifier = generateNullifier(burner.keypair);
+          const registry = getNullifierRegistry();
+          await registry.markUsed(nullifier, signature);
+          console.log(`[Nullifier] Marked nullifier as used for regular SPL drop`);
+        }
+  
+        updateDropStatus(burner.keypair.publicKey.toBase58(), "claimed");
+        addClaimedDrop({
+          address: burner.keypair.publicKey.toBase58(),
+          amount: unitsToAmount(burner.balance, decimals, 4),
+          asset: burner.asset,
+          mint: burner.mint,
           cluster: burner.cluster,
           signature,
           claimedAt: new Date().toISOString(),
@@ -345,6 +435,7 @@ export default function ClaimDropPage() {
           claimedAt: new Date().toISOString(),
         });
       }
+    }
 
       setStatus("Drop claimed. Burner destroyed.");
       setBurnerState(null);
@@ -418,7 +509,8 @@ export default function ClaimDropPage() {
         throw new Error(result.error || "Relayer claim failed");
       }
 
-      const decimals = getAssetDecimals(burner.asset);
+      const decimals =
+        burner.asset === "spl" ? burner.tokenMeta?.decimals ?? 0 : getAssetDecimals(burner.asset);
       const amountReceived = result.amountReceived / Math.pow(10, decimals);
       const feePaid = result.feePaid / Math.pow(10, decimals);
 
@@ -450,9 +542,9 @@ export default function ClaimDropPage() {
       ? "Hidden (shielded)"
       : `${unitsToAmount(
           burner.balance,
-          getAssetDecimals(burner.asset),
+          burner.asset === "spl" ? burner.tokenMeta?.decimals ?? 0 : getAssetDecimals(burner.asset),
           burner.asset === "sol" ? 6 : 4
-        )} ${getAssetSymbol(burner.asset)}`
+        )} ${burner.asset === "spl" ? burner.tokenMeta?.symbol ?? "SPL" : getAssetSymbol(burner.asset)}`
     : "0";
 
   return (
@@ -528,9 +620,48 @@ export default function ClaimDropPage() {
                 Burner address: <span className="text-[var(--accent)]">{burner.keypair.publicKey.toBase58()}</span>
               </p>
             )}
-            <p className="text-sm text-[rgba(224,224,224,0.8)]">
-              Asset: <strong>{getAssetSymbol(burner.asset)}</strong> · Cluster: {CLUSTER_LABELS[burner.cluster]}
-            </p>
+            {burner.asset === "spl" ? (
+              <div className="flex items-center gap-3 text-sm text-[rgba(224,224,224,0.8)]">
+                {burner.tokenMeta?.logoURI && (
+                  <img
+                    src={burner.tokenMeta.logoURI}
+                    alt={`${burner.tokenMeta.symbol} logo`}
+                    className="h-6 w-6 rounded-full border border-[rgba(0,255,65,0.2)]"
+                  />
+                )}
+                <div>
+                  <p>
+                    Token: <strong>{burner.tokenMeta?.name ?? "Custom SPL Token"}</strong> (
+                    {burner.tokenMeta?.symbol ?? "SPL"})
+                  </p>
+                  <p className="text-xs text-[rgba(224,224,224,0.6)]">
+                    Cluster: {CLUSTER_LABELS[burner.cluster]}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-[rgba(224,224,224,0.8)]">
+                Asset: <strong>{getAssetSymbol(burner.asset)}</strong> · Cluster: {CLUSTER_LABELS[burner.cluster]}
+              </p>
+            )}
+            {burner.asset === "spl" && burner.tokenMeta?.metadataSource === "none" && (
+              <p className="text-xs text-[var(--danger)]">
+                No on-chain metadata found for this mint.
+              </p>
+            )}
+            {burner.asset === "spl" &&
+              burner.tokenMeta &&
+              burner.tokenMeta.metadataSource !== "none" &&
+              !burner.tokenMeta.logoURI && (
+                <p className="text-xs text-[rgba(224,224,224,0.6)]">
+                  No token image metadata found for this mint.
+                </p>
+              )}
+            {burner.asset === "spl" && burner.mint && (
+              <p className="text-xs text-[rgba(224,224,224,0.6)]">
+                Mint: <span className="text-[var(--accent)]">{burner.mint}</span>
+              </p>
+            )}
             <p className="text-sm text-[rgba(224,224,224,0.8)]">Balance: <strong>{balanceDisplay}</strong></p>
             {confidentialNotes.length > 0 && (
               <ConfidentialPreviewCard
