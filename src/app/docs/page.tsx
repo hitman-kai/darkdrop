@@ -139,13 +139,13 @@ const sections = [
   },
   {
     id: "darkpool",
-    title: "DarkPool (Coming Soon)",
+    title: "DarkPool (Live)",
     icon: <Shield size={18} />,
     content: (
       <>
         <p>
           DarkPool is a shielded mixing pool that provides maximum privacy by breaking all on-chain links
-          between deposits and claims.
+          between deposits and claims. It is live and uses a shared pool wallet with Light Protocol compression.
         </p>
         <div className="mt-4 bg-black/40 p-4 font-mono text-xs text-[rgba(224,224,224,0.7)]">
           <p className="text-[var(--accent)] mb-2">// DarkPool Flow</p>
@@ -235,7 +235,7 @@ const sections = [
             <p className="text-[rgba(224,224,224,0.7)]">darkdrop:v2:mainnet:sol:raw:...</p>
           </div>
           <div className="border-l-2 border-[rgba(224,224,224,0.2)] pl-3 py-1">
-            <p className="text-[rgba(224,224,224,0.4)]">DarkPool (v3)</p>
+            <p className="text-[rgba(224,224,224,0.4)]">DarkPool (Live)</p>
             <p className="text-[rgba(224,224,224,0.7)]">darkpool:v1:mainnet:sol:1:...</p>
           </div>
         </div>
