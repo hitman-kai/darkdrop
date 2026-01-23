@@ -10,6 +10,7 @@ export type SentDrop = {
   address: string;
   amount: string;
   asset: AssetSymbol;
+  claimCode?: string;
   cluster: ClusterType;
   createdAt: string;
   status: "pending" | "claimed";
@@ -37,6 +38,7 @@ const normalizeSentDrop = (drop: Partial<SentDrop>): SentDrop => ({
   address: drop.address ?? "unknown",
   amount: drop.amount ?? "0",
   asset: drop.asset ?? DEFAULT_ASSET,
+  claimCode: drop.claimCode,
   cluster: drop.cluster ?? DEFAULT_CLUSTER,
   createdAt: drop.createdAt ?? new Date().toISOString(),
   status: drop.status ?? "pending",

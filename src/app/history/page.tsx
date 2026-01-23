@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Clock3, ShieldCheck } from "lucide-react";
 
@@ -11,9 +12,61 @@ const explorerUrl = (signature: string) => {
   return base;
 };
 
+const claimUrl = (code: string) => `/drop/claim?code=${encodeURIComponent(code)}`;
+
+const copyToClipboard = async (value: string) => {
+  if (typeof navigator === "undefined" || !navigator.clipboard) return;
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    // ignore clipboard errors
+  }
+};
+
 export default function HistoryPage() {
   const sentDrops = useHistoryStore((state) => state.sentDrops);
   const claimedDrops = useHistoryStore((state) => state.claimedDrops);
+  const [searchAddress, setSearchAddress] = useState("");
+  const [recoverStatus, setRecoverStatus] = useState<string | null>(null);
+  const [recoverClaimCode, setRecoverClaimCode] = useState<string | null>(null);
+
+  const handleRecover = () => {
+    setRecoverStatus(null);
+    setRecoverClaimCode(null);
+
+    const target = searchAddress.trim();
+    if (!target) {
+      setRecoverStatus("Enter a drop address to search.");
+      return;
+    }
+    if (typeof window === "undefined") {
+      setRecoverStatus("Local storage unavailable.");
+      return;
+    }
+
+    try {
+      const raw = window.localStorage.getItem("darkdrop-history");
+      if (!raw) {
+        setRecoverStatus("No local history found.");
+        return;
+      }
+      const parsed = JSON.parse(raw) as { state?: { sentDrops?: Array<{ address?: string; claimCode?: string }> } };
+      const entries = parsed.state?.sentDrops ?? [];
+      const match = entries.find((drop) => drop.address === target);
+      if (!match) {
+        setRecoverStatus("No matching drop found in local history.");
+        return;
+      }
+      if (!match.claimCode) {
+        setRecoverStatus("Match found, but no claim code was stored.");
+        return;
+      }
+      setRecoverClaimCode(match.claimCode);
+      setRecoverStatus("Claim code recovered from local storage.");
+    } catch {
+      setRecoverStatus("Failed to read local storage.");
+    }
+  };
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-16">
@@ -51,6 +104,19 @@ export default function HistoryPage() {
                 >
                   {drop.status}
                 </p>
+                {drop.claimCode && (
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    <button type="button" onClick={() => copyToClipboard(drop.claimCode!)}>
+                      COPY CLAIM CODE
+                    </button>
+                    <Link
+                      href={claimUrl(drop.claimCode)}
+                      className="border border-[rgba(255,0,68,0.6)] bg-[rgba(255,0,68,0.08)] px-3 py-2 text-[var(--danger)]"
+                    >
+                      CLAW BACK
+                    </Link>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -84,6 +150,34 @@ export default function HistoryPage() {
             ))}
           </div>
         </article>
+      </section>
+
+      <section className="border border-[rgba(0,255,65,0.2)] bg-[var(--card)] p-5 text-xs">
+        <p className="text-sm tracking-[0.3em] text-[var(--accent)]">RECOVER FROM LOCAL</p>
+        <p className="mt-2 text-[rgba(224,224,224,0.7)]">
+          Search this device&apos;s local history for a stored claim code by burner address.
+        </p>
+        <div className="mt-3 flex flex-col gap-3 md:flex-row">
+          <input
+            type="text"
+            value={searchAddress}
+            onChange={(event) => setSearchAddress(event.target.value)}
+            placeholder="Paste drop address"
+            className="flex-1"
+          />
+          <button type="button" onClick={handleRecover} className="px-4 py-2">
+            CHECK LOCAL
+          </button>
+        </div>
+        {recoverStatus && (
+          <p className="mt-3 text-[rgba(224,224,224,0.7)]">{recoverStatus}</p>
+        )}
+        {recoverClaimCode && (
+          <div className="mt-3 space-y-2">
+            <p className="text-[var(--accent)]">Recovered claim code:</p>
+            <pre className="max-h-32 overflow-y-auto bg-black/60 p-3 text-xs">{recoverClaimCode}</pre>
+          </div>
+        )}
       </section>
     </div>
   );

@@ -347,7 +347,7 @@ export function claimDrop(code: string, options?: ClaimOptions): ClaimedDrop {
     throw new Error("Malformed claim code");
   }
 
-  const [, version, clusterSegment, assetSegment, mode, ...rest] = segments;
+  const [, version, clusterSegment, assetSegment, ...restSegments] = segments;
   
   // Handle v1 codes
   if (version === "v1") {
@@ -357,6 +357,8 @@ export function claimDrop(code: string, options?: ClaimOptions): ClaimedDrop {
     const cluster = parseCluster(clusterSegment);
     const asset = parseAsset(assetSegment);
 
+    const mode = restSegments[0];
+    const rest = restSegments.slice(1);
     if (mode === "raw") {
       const payload = rest[0];
       if (!payload) throw new Error("Malformed claim code");
@@ -406,15 +408,17 @@ export function claimDrop(code: string, options?: ClaimOptions): ClaimedDrop {
     throw new Error(`Unsupported claim version: ${version}`);
   }
 
+  const cluster = parseCluster(clusterSegment);
+
   // Check if this is a compressed token drop
+  const mode = restSegments[0];
+  const rest = restSegments.slice(1);
   if (mode === "compressed") {
     const assetForLight = parseAsset(assetSegment);
-    const cluster = parseCluster(clusterSegment);
-    
-    if (segments.length < 6) {
+    if (restSegments.length < 2) {
       throw new Error("Malformed compressed drop claim code");
     }
-    
+
     const encMode = rest[0];
     let recipientSecret: Uint8Array;
     let encrypted = false;
@@ -462,11 +466,9 @@ export function claimDrop(code: string, options?: ClaimOptions): ClaimedDrop {
   }
 
   // Handle v2 burner wallet codes
-  if (segments.length < 6) {
+  if (restSegments.length < 2) {
     throw new Error("Malformed claim code");
   }
-
-  const cluster = parseCluster(clusterSegment);
   const asset = parseAsset(assetSegment);
 
   if (mode === "raw") {

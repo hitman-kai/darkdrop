@@ -17,7 +17,7 @@ import BN from "bn.js";
 import { DropCard } from "@/components/DropCard";
 import { QRDisplay } from "@/components/QRDisplay";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
-import { ASSETS, AssetSymbol, DEFAULT_ASSET } from "@/lib/tokens";
+import { ASSETS, DEFAULT_ASSET } from "@/lib/tokens";
 
 // Fixed denominations for privacy
 const FIXED_DENOMINATIONS = {
@@ -43,17 +43,19 @@ type PoolInfo = {
   instructions: string;
 };
 
+type PoolAsset = "sol" | "usdc";
+
 type DepositResult = {
   claimCode: string;
   amount: string;
-  asset: AssetSymbol;
+  asset: PoolAsset;
 };
 
 export default function PoolDepositPage() {
   const { connection } = useConnection();
   const { publicKey, connected, sendTransaction } = useWallet();
 
-  const [asset, setAsset] = useState<AssetSymbol>(DEFAULT_ASSET);
+  const [asset, setAsset] = useState<PoolAsset>(DEFAULT_ASSET);
   const [amount, setAmount] = useState(FIXED_DENOMINATIONS[DEFAULT_ASSET][0].value);
   const [processing, setProcessing] = useState(false);
   const [compressing, setCompressing] = useState(false);
@@ -80,7 +82,7 @@ export default function PoolDepositPage() {
     fetchPoolInfo();
   }, []);
 
-  const handleAssetChange = (next: AssetSymbol) => {
+  const handleAssetChange = (next: PoolAsset) => {
     setAsset(next);
     setAmount(FIXED_DENOMINATIONS[next][0].value);
   };
@@ -223,7 +225,7 @@ export default function PoolDepositPage() {
         >
           {/* Asset Selection */}
           <div className="flex flex-wrap gap-2 text-xs">
-            {(Object.keys(FIXED_DENOMINATIONS) as AssetSymbol[]).map((key) => (
+            {(Object.keys(FIXED_DENOMINATIONS) as PoolAsset[]).map((key) => (
               <button
                 key={key}
                 type="button"

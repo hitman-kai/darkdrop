@@ -11,7 +11,7 @@ import { DropCard } from "@/components/DropCard";
 import { ConfidentialPreviewCard } from "@/components/ConfidentialPreviewCard";
 import { QRDisplay } from "@/components/QRDisplay";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
-import { amountToUnits, unitsToAmount } from "@/lib/amount";
+import { amountToUnits } from "@/lib/amount";
 import { generateDrop, type DropPayload } from "@/lib/drop";
 import { generateConfidentialProof } from "@/lib/confidential/proofClient";
 import { getConfidentialSupport, planConfidentialTransfer } from "@/lib/confidential/transfers";
@@ -26,7 +26,6 @@ import {
   getAssetProgramId,
   getAssetSymbol,
 } from "@/lib/tokens";
-import { fetchSplMetadata, getMintProgram, type SplTokenMeta } from "@/lib/spl";
 import { useHistoryStore } from "@/store/history";
 import { useSettingsStore } from "@/store/settings";
 import { usePrivacyStore } from "@/store/privacy";
@@ -49,7 +48,7 @@ const FIXED_DENOMINATIONS = {
   ],
 };
 
-const CREATE_ASSET_LIST: AssetSymbol[] = ["sol", "usdc", "spl"];
+const CREATE_ASSET_LIST: AssetSymbol[] = ["sol", "usdc"];
 const MIN_BATCH_COUNT = 2;
 const MAX_BATCH_COUNT = 20;
 
@@ -79,18 +78,10 @@ export default function CreateDropPage() {
   const privacyPending = usePrivacyStore((state) => state.pending);
   const setPrivacyPending = usePrivacyStore((state) => state.setPending);
 
-  const initialAsset = preferredAsset ?? DEFAULT_ASSET;
+  const initialAsset =
+    preferredAsset && preferredAsset in FIXED_DENOMINATIONS ? preferredAsset : DEFAULT_ASSET;
   const [asset, setAsset] = useState<AssetSymbol>(initialAsset);
-  const [amount, setAmount] = useState(
-    initialAsset === "spl" ? "" : FIXED_DENOMINATIONS[initialAsset][0].value
-  );
-  const [customMint, setCustomMint] = useState("");
-  const [customMeta, setCustomMeta] = useState<SplTokenMeta | null>(null);
-  const [customMintError, setCustomMintError] = useState<string | null>(null);
-  const [customMintLoading, setCustomMintLoading] = useState(false);
-  const [customBalance, setCustomBalance] = useState<bigint | null>(null);
-  const [customBalanceError, setCustomBalanceError] = useState<string | null>(null);
-  const [customBalanceLoading, setCustomBalanceLoading] = useState(false);
+  const [amount, setAmount] = useState(FIXED_DENOMINATIONS[initialAsset][0].value);
   const [password, setPassword] = useState("");
   const [ultraPrivateMode, setUltraPrivateMode] = useState(false);
   const [shielding, setShielding] = useState(false);
@@ -110,16 +101,14 @@ export default function CreateDropPage() {
   } | null>(null);
 
   useEffect(() => {
-    setAsset(preferredAsset);
-    if (preferredAsset === "spl") {
-      setAmount("");
-    } else {
-      setAmount(FIXED_DENOMINATIONS[preferredAsset][0].value);
-    }
+    const nextAsset =
+      preferredAsset && preferredAsset in FIXED_DENOMINATIONS ? preferredAsset : DEFAULT_ASSET;
+    setAsset(nextAsset);
+    setAmount(FIXED_DENOMINATIONS[nextAsset][0].value);
   }, [preferredAsset]);
 
-  const decimals = asset === "spl" ? customMeta?.decimals ?? 0 : getAssetDecimals(asset);
-  const symbol = asset === "spl" ? customMeta?.symbol ?? "SPL" : getAssetSymbol(asset);
+  const decimals = getAssetDecimals(asset);
+  const symbol = getAssetSymbol(asset);
   const confidentialSupport = useMemo(() => getConfidentialSupport(asset), [asset]);
   const confidentialSupported = confidentialSupport.supported;
   const confidentialSupportReason = confidentialSupport.reason;
@@ -129,107 +118,9 @@ export default function CreateDropPage() {
   const handleAssetChange = (next: AssetSymbol) => {
     setAsset(next);
     setPreferredAsset(next);
-    if (next === "spl") {
-      setAmount("");
-      return;
-    }
     // Reset to first fixed denomination for core asset
     setAmount(FIXED_DENOMINATIONS[next][0].value);
   };
-
-  useEffect(() => {
-    if (asset !== "spl") {
-      setCustomMeta(null);
-      setCustomMintError(null);
-      setCustomMintLoading(false);
-      setCustomBalance(null);
-      setCustomBalanceError(null);
-      setCustomBalanceLoading(false);
-      return;
-    }
-    const trimmed = customMint.trim();
-    if (!trimmed) {
-      setCustomMeta(null);
-      setCustomMintError(null);
-      setCustomMintLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setCustomMintLoading(true);
-    setCustomMintError(null);
-
-    const timer = setTimeout(async () => {
-      try {
-        const meta = await fetchSplMetadata(connection, trimmed);
-        if (!cancelled) {
-          setCustomMeta(meta);
-          setCustomMintError(null);
-        }
-      } catch (metaError) {
-        if (!cancelled) {
-          setCustomMeta(null);
-          setCustomMintError(metaError instanceof Error ? metaError.message : "Invalid mint");
-        }
-      } finally {
-        if (!cancelled) {
-          setCustomMintLoading(false);
-        }
-      }
-    }, 450);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [asset, customMint, connection]);
-
-  useEffect(() => {
-    if (asset !== "spl" || !customMeta || !publicKey) {
-      setCustomBalance(null);
-      setCustomBalanceError(null);
-      setCustomBalanceLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setCustomBalanceLoading(true);
-    setCustomBalanceError(null);
-
-    const run = async () => {
-      try {
-        const tokenProgramId = await getMintProgram(connection, customMeta.mint);
-        const mint = new PublicKey(customMeta.mint);
-        const ata = await getAssociatedTokenAddress(mint, publicKey, false, tokenProgramId);
-        const info = await connection.getTokenAccountBalance(ata).catch(() => null);
-        if (!info?.value?.amount) {
-          if (!cancelled) {
-            setCustomBalance(0n);
-          }
-          return;
-        }
-        if (!cancelled) {
-          setCustomBalance(BigInt(info.value.amount));
-        }
-      } catch (balanceError) {
-        if (!cancelled) {
-          setCustomBalance(null);
-          setCustomBalanceError(
-            balanceError instanceof Error ? balanceError.message : "Unable to fetch balance"
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setCustomBalanceLoading(false);
-        }
-      }
-    };
-
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [asset, customMeta, publicKey, connection]);
 
   useEffect(() => {
     let cancelled = false;
@@ -354,7 +245,6 @@ export default function CreateDropPage() {
           payerPubkey: publicKey,
           sendTransactionFn: sendTxFn,
           amount: rawAmount,
-          mint: asset === "spl" ? customMeta?.mint ?? customMint.trim() : undefined,
         });
 
         if (!drop.shielded) {
@@ -380,7 +270,6 @@ export default function CreateDropPage() {
       password: dropPassword,
       ultraPrivateMode: false,
       amount: rawAmount,
-      mint: asset === "spl" ? customMeta?.mint ?? customMint.trim() : undefined,
     });
     const dropPubkey = new PublicKey(drop.address);
     let signature = "";
@@ -398,15 +287,11 @@ export default function CreateDropPage() {
       tx.feePayer = publicKey;
       signature = await sendTransaction(tx, connection, { skipPreflight: false });
     } else {
-      const isCustomSpl = asset === "spl";
-      const mintAddress =
-        asset === "spl" ? customMeta?.mint ?? customMint.trim() : getAssetMint(asset, cluster);
-      const tokenProgramId = isCustomSpl
-        ? await getMintProgram(connection, mintAddress)
-        : getAssetProgramId(asset);
+      const mintAddress = getAssetMint(asset, cluster);
       if (!mintAddress) {
-        throw new Error("SPL mint address not configured.");
+        throw new Error("Token mint address not configured.");
       }
+      const tokenProgramId = getAssetProgramId(asset);
       if (!tokenProgramId) {
         throw new Error(`Token program ID not configured for ${symbol}`);
       }
@@ -500,18 +385,6 @@ export default function CreateDropPage() {
         throw new Error("Wallet not found on Solana Mainnet Beta. Switch your wallet network and ensure it holds mainnet SOL (and USDC if needed).");
       }
 
-      if (asset === "spl") {
-        if (!customMint.trim()) {
-          throw new Error("Enter a valid SPL mint address.");
-        }
-        if (!customMeta) {
-          throw new Error(customMintError || "Unable to load SPL metadata.");
-        }
-        if (ultraPrivateMode) {
-          throw new Error("Ultra Private Mode is not supported for custom SPL mints yet.");
-        }
-      }
-
       const rawAmount = amountToUnits(amount, decimals);
       if (rawAmount <= 0n) {
         throw new Error("Enter a valid amount.");
@@ -532,7 +405,7 @@ export default function CreateDropPage() {
             address: created.address,
             amount,
             asset,
-            mint: asset === "spl" ? customMeta?.mint ?? customMint.trim() : undefined,
+            claimCode: created.claimCode,
             cluster,
             createdAt: new Date().toISOString(),
             status: "pending",
@@ -552,7 +425,7 @@ export default function CreateDropPage() {
         address: created.address,
         amount,
         asset,
-        mint: asset === "spl" ? customMeta?.mint ?? customMint.trim() : undefined,
+        claimCode: created.claimCode,
         cluster,
         createdAt: new Date().toISOString(),
         status: "pending",
@@ -589,7 +462,7 @@ export default function CreateDropPage() {
 
       <DropCard
         title="TRANSFER"
-        subtitle="Specify amount and optional password. Supported assets: SOL, USDC, Custom SPL."
+        subtitle="Specify amount and optional password. Supported assets: SOL, USDC."
       >
         <div className="flex flex-wrap gap-2 text-xs">
           {CREATE_ASSET_LIST.map((key) => (
@@ -601,7 +474,7 @@ export default function CreateDropPage() {
                 asset === key ? "border-[var(--accent)] text-[var(--accent)]" : "border-[rgba(0,255,65,0.2)]"
               }`}
             >
-              {key === "spl" ? "SPL" : ASSETS[key].symbol}
+              {ASSETS[key].symbol}
             </button>
           ))}
         </div>
@@ -609,101 +482,28 @@ export default function CreateDropPage() {
           <span className="text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
             AMOUNT · {symbol}
           </span>
-          {asset === "spl" ? (
-            <div className="flex flex-col gap-2">
-              <input
-                type="text"
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-                placeholder="0.0"
-                className="w-full"
-              />
-              <p className="text-[10px] text-[rgba(224,224,224,0.35)]">
-                Custom SPL amounts are supported. Use exact decimals from metadata.
-              </p>
+          <>
+            <div className="flex gap-1.5">
+              {FIXED_DENOMINATIONS[asset].map((denom) => (
+                <button
+                  key={denom.value}
+                  type="button"
+                  onClick={() => setAmount(denom.value)}
+                  className={`border px-3 py-2 text-xs tracking-[0.15em] transition-all ${
+                    amount === denom.value
+                      ? "border-[var(--accent)] bg-[rgba(0,255,65,0.1)] text-[var(--accent)]"
+                      : "border-[rgba(0,255,65,0.2)] hover:border-[rgba(0,255,65,0.4)]"
+                  }`}
+                >
+                  {denom.label}
+                </button>
+              ))}
             </div>
-          ) : (
-            <>
-              <div className="flex gap-1.5">
-                {FIXED_DENOMINATIONS[asset].map((denom) => (
-                  <button
-                    key={denom.value}
-                    type="button"
-                    onClick={() => setAmount(denom.value)}
-                    className={`border px-3 py-2 text-xs tracking-[0.15em] transition-all ${
-                      amount === denom.value
-                        ? "border-[var(--accent)] bg-[rgba(0,255,65,0.1)] text-[var(--accent)]"
-                        : "border-[rgba(0,255,65,0.2)] hover:border-[rgba(0,255,65,0.4)]"
-                    }`}
-                  >
-                    {denom.label}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[10px] text-[rgba(224,224,224,0.35)]">
-                Fixed amounts for privacy · prevents tracking
-              </p>
-            </>
-          )}
+            <p className="text-[10px] text-[rgba(224,224,224,0.35)]">
+              Fixed amounts for privacy · prevents tracking
+            </p>
+          </>
         </div>
-        {asset === "spl" && (
-          <div className="flex flex-col gap-2">
-            <label className="block text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
-              SPL MINT ADDRESS
-              <input
-                type="text"
-                value={customMint}
-                onChange={(event) => setCustomMint(event.target.value)}
-                placeholder="Paste mint address"
-                className="mt-2 w-full"
-              />
-            </label>
-            {customMintLoading && (
-              <p className="text-[10px] text-[rgba(224,224,224,0.45)]">Loading metadata...</p>
-            )}
-            {customMeta && (
-              <div className="flex items-center gap-3 text-xs text-[rgba(224,224,224,0.7)]">
-                {customMeta.logoURI && (
-                  <img
-                    src={customMeta.logoURI}
-                    alt={`${customMeta.symbol} logo`}
-                    className="h-6 w-6 rounded-full border border-[rgba(0,255,65,0.2)]"
-                  />
-                )}
-                <div>
-                  <p>
-                    Token: <span className="text-[var(--accent)]">{customMeta.name}</span> ({customMeta.symbol})
-                  </p>
-                  <p>Decimals: {customMeta.decimals} · Program: {customMeta.program}</p>
-                </div>
-              </div>
-            )}
-            {customMeta?.metadataSource === "none" && (
-              <p className="text-[10px] text-[var(--danger)]">
-                No on-chain metadata found for this mint. The token may not publish name/symbol/logo.
-              </p>
-            )}
-            {customMeta && customMeta.metadataSource !== "none" && !customMeta.logoURI && (
-              <p className="text-[10px] text-[rgba(224,224,224,0.45)]">
-                No token image metadata found for this mint.
-              </p>
-            )}
-            {customMeta && publicKey && (
-              <p className="text-[10px] text-[rgba(224,224,224,0.45)]">
-                {customBalanceLoading
-                  ? "Fetching token balance..."
-                  : customBalanceError
-                    ? `Balance lookup failed: ${customBalanceError}`
-                    : customBalance !== null
-                      ? `Wallet balance: ${unitsToAmount(customBalance, customMeta.decimals, 4)} ${customMeta.symbol}`
-                      : "Wallet balance: --"}
-              </p>
-            )}
-            {customMintError && (
-              <p className="text-xs text-[var(--danger)]">{customMintError}</p>
-            )}
-          </div>
-        )}
         <label className="block text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
           PASSWORD (OPTIONAL)
           <input
@@ -756,7 +556,6 @@ export default function CreateDropPage() {
             <input
               type="checkbox"
               checked={ultraPrivateMode}
-              disabled={asset === "spl"}
               onChange={(e) => {
                 setUltraPrivateMode(e.target.checked);
                 if (e.target.checked) {
@@ -772,11 +571,6 @@ export default function CreateDropPage() {
           {ultraPrivateMode && (
             <p className="text-xs text-[rgba(224,224,224,0.5)] ml-6">
               Uses Light Protocol zk-compression for link obfuscation. Compressed tokens/SOL owned by random keypair.
-            </p>
-          )}
-          {asset === "spl" && (
-            <p className="text-xs text-[rgba(224,224,224,0.5)] ml-6">
-              Custom SPL mints are standard transfers only. Private rails and compression are disabled.
             </p>
           )}
         </div>
@@ -928,11 +722,9 @@ export default function CreateDropPage() {
 }
 
 const CODE_PREVIEW = (cluster: ClusterType, asset: AssetSymbol, compressed: boolean = false) =>
-  asset === "spl"
-    ? `darkdrop:v2:${cluster}:spl:<mint>:raw:...`
-    : compressed 
-      ? `darkdrop:v2:${cluster}:${asset}:compressed:raw:...`
-      : `darkdrop:v2:${cluster}:${asset}:raw:...`;
+  compressed
+    ? `darkdrop:v2:${cluster}:${asset}:compressed:raw:...`
+    : `darkdrop:v2:${cluster}:${asset}:raw:...`;
 
 const normalizeTxError = (error: unknown): string => {
   if (error instanceof Error) {
