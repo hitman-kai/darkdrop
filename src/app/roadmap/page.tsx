@@ -34,6 +34,16 @@ const TIMELINE: TimelineEntry[] = [
     statusColor: 'var(--accent)',
   },
   {
+    title: 'v2.1 — January 2026',
+    bullets: [
+      'Batch drops (multi-recipient) with 2-20 drops per session',
+      'Clawback flow for unclaimed drops',
+      'Claim code storage in local history',
+    ],
+    status: 'LIVE',
+    statusColor: 'var(--accent)',
+  },
+  {
     title: 'v3 — Q2 2026',
     bullets: [
       'DarkPool — shielded mixing pool for maximum privacy',
@@ -41,7 +51,6 @@ const TIMELINE: TimelineEntry[] = [
       'Tor routing for RPC calls (hide IP from providers)',
       'Telegram Mini App integration',
       'Duress mode (decoy wallet on wrong password)',
-      'Multi-recipient batch drops',
     ],
     status: 'IN PROGRESS',
     statusColor: 'rgba(255, 200, 0, 0.9)',
@@ -76,11 +85,10 @@ export default function RoadmapPage() {
       {/* Current Focus */}
       <div className="mt-10 border border-[rgba(0,255,65,0.3)] bg-[rgba(0,255,65,0.05)] p-4">
         <p className="font-mono text-xs uppercase tracking-[0.4em] text-[var(--accent)]">
-          CURRENT FOCUS: DARKPOOL
+          CURRENT FOCUS: UTILITY RELEASES
         </p>
         <p className="mt-2 font-mono text-sm text-[rgba(224,224,224,0.7)]">
-          Building shielded mixing pool with fixed denominations. All deposits flow to shared pool, 
-          claims come from pool with no on-chain link to original deposit.
+          Shipping batch drops, clawback recovery, and stronger sender tooling while DarkPool continues in parallel.
         </p>
       </div>
 

@@ -213,6 +213,42 @@ const sections = [
     ),
   },
   {
+    id: "batch",
+    title: "Batch Drops",
+    icon: <Share size={18} />,
+    content: (
+      <>
+        <p>
+          Batch mode creates multiple drops in one session (2-20). Each drop is its own transaction
+          and gets its own claim code.
+        </p>
+        <ul className="list-disc space-y-2 pl-6 text-sm text-[rgba(224,224,224,0.75)]">
+          <li>All drops use the same asset and fixed amount</li>
+          <li>You sign once per drop (one transaction per drop)</li>
+          <li>Claim codes are saved locally in History for recovery</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: "clawback",
+    title: "Clawback",
+    icon: <Lock size={18} />,
+    content: (
+      <>
+        <p>
+          Clawback lets the sender recover an unclaimed drop by using the original claim code.
+          It is the same claim flow, but you claim back to your wallet.
+        </p>
+        <ul className="list-disc space-y-2 pl-6 text-sm text-[rgba(224,224,224,0.75)]">
+          <li>Works for both SOL and USDC</li>
+          <li>Requires the claim code (no recovery without it)</li>
+          <li>Use the Claw Back button in History or on the result screen</li>
+        </ul>
+      </>
+    ),
+  },
+  {
     id: "claim-formats",
     title: "Claim Code Formats",
     icon: <Share size={18} />,
