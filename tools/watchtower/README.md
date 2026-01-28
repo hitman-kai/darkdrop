@@ -13,6 +13,17 @@ Run (one-time check)
 --------------------
 node tools/watchtower/watchtower.mjs --vault /path/to/darkdrop-vault.json --passphrase "your-passphrase"
 
+Filter results
+--------------
+node tools/watchtower/watchtower.mjs --vault /path/to/darkdrop-vault.json --passphrase "your-passphrase" --only unclaimed
+node tools/watchtower/watchtower.mjs --vault /path/to/darkdrop-vault.json --passphrase "your-passphrase" --only claimed
+node tools/watchtower/watchtower.mjs --vault /path/to/darkdrop-vault.json --passphrase "your-passphrase" --only skipped
+node tools/watchtower/watchtower.mjs --vault /path/to/darkdrop-vault.json --passphrase "your-passphrase" --only compressed
+
+JSON output
+-----------
+node tools/watchtower/watchtower.mjs --vault /path/to/darkdrop-vault.json --passphrase "your-passphrase" --format json
+
 Run (repeat every 10 minutes)
 -----------------------------
 node tools/watchtower/watchtower.mjs --vault /path/to/darkdrop-vault.json --passphrase "your-passphrase" --interval 600

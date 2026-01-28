@@ -104,6 +104,16 @@ const checkDrops = async (connection, snapshot) => {
   return results;
 };
 
+const applyFilter = (results, only) => {
+  if (!only) return results;
+  const normalized = only.toLowerCase();
+  if (normalized === "compressed") return results.filter((entry) => entry.compressed);
+  if (normalized === "skipped") return results.filter((entry) => entry.live === "skipped");
+  if (normalized === "claimed") return results.filter((entry) => entry.live === "claimed");
+  if (normalized === "unclaimed") return results.filter((entry) => entry.live === "unclaimed");
+  return results;
+};
+
 const logResults = (results) => {
   const timestamp = new Date().toISOString();
   console.log(`\n[watchtower] ${timestamp}`);
@@ -114,6 +124,14 @@ const logResults = (results) => {
   });
 };
 
+const logJson = (results) => {
+  const payload = {
+    timestamp: new Date().toISOString(),
+    results,
+  };
+  console.log(JSON.stringify(payload, null, 2));
+};
+
 const sleep = (seconds) => new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 
 const main = async () => {
@@ -121,9 +139,13 @@ const main = async () => {
   const vaultPath = args.vault;
   const passphrase = args.passphrase;
   const interval = args.interval ? Number.parseInt(args.interval, 10) : 0;
+  const only = args.only;
+  const format = args.format;
 
   if (!vaultPath || !passphrase) {
-    console.error("Usage: node tools/watchtower/watchtower.mjs --vault <file> --passphrase <passphrase> [--interval 600]");
+    console.error(
+      "Usage: node tools/watchtower/watchtower.mjs --vault <file> --passphrase <passphrase> [--interval 600] [--only unclaimed|claimed|skipped|compressed] [--format json]"
+    );
     process.exit(1);
   }
 
@@ -134,7 +156,12 @@ const main = async () => {
     const vault = JSON.parse(raw);
     const snapshot = await decryptVault(vault, passphrase);
     const results = await checkDrops(connection, snapshot);
-    logResults(results);
+    const filtered = applyFilter(results, only);
+    if (format === "json") {
+      logJson(filtered);
+    } else {
+      logResults(filtered);
+    }
     if (interval > 0) {
       await sleep(interval);
     }
