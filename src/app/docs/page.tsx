@@ -249,6 +249,24 @@ const sections = [
     ),
   },
   {
+    id: "local-vault",
+    title: "Local Privacy Vault + Watchtower",
+    icon: <Shield size={18} />,
+    content: (
+      <>
+        <p>
+          Export an encrypted vault file that stays on your device. The vault can be stored offline or used by a
+          local watchtower to check drop status without exposing claim codes to any server.
+        </p>
+        <ul className="list-disc space-y-2 pl-6 text-sm text-[rgba(224,224,224,0.75)]">
+          <li>Vaults are encrypted client-side with a passphrase</li>
+          <li>Outbound-only monitoring, no public endpoints</li>
+          <li>Designed for local devices and self-hosted setups</li>
+        </ul>
+      </>
+    ),
+  },
+  {
     id: "claim-formats",
     title: "Claim Code Formats",
     icon: <Share size={18} />,

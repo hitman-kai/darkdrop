@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowUpRight, Clock3, ShieldCheck } from "lucide-react";
 
 import { CLUSTER_LABELS, getAssetSymbol } from "@/lib/tokens";
+import { buildEncryptedVault } from "@/lib/vault";
 import { useHistoryStore } from "@/store/history";
 
 const explorerUrl = (signature: string) => {
@@ -29,6 +30,9 @@ export default function HistoryPage() {
   const [searchAddress, setSearchAddress] = useState("");
   const [recoverStatus, setRecoverStatus] = useState<string | null>(null);
   const [recoverClaimCode, setRecoverClaimCode] = useState<string | null>(null);
+  const [vaultPassphrase, setVaultPassphrase] = useState("");
+  const [vaultStatus, setVaultStatus] = useState<string | null>(null);
+  const [vaultBusy, setVaultBusy] = useState(false);
 
   const handleRecover = () => {
     setRecoverStatus(null);
@@ -65,6 +69,50 @@ export default function HistoryPage() {
       setRecoverStatus("Claim code recovered from local storage.");
     } catch {
       setRecoverStatus("Failed to read local storage.");
+    }
+  };
+
+  const handleVaultExport = async () => {
+    setVaultStatus(null);
+    if (typeof window === "undefined") {
+      setVaultStatus("Vault export is only available in the browser.");
+      return;
+    }
+
+    try {
+      setVaultBusy(true);
+      const snapshot = {
+        sentDrops: sentDrops.map((drop) => ({
+          address: drop.address,
+          amount: drop.amount,
+          asset: drop.asset,
+          cluster: drop.cluster,
+          claimCode: drop.claimCode,
+          createdAt: drop.createdAt,
+          status: drop.status,
+        })),
+        claimedDrops: claimedDrops.map((drop) => ({
+          address: drop.address,
+          amount: drop.amount,
+          asset: drop.asset,
+          cluster: drop.cluster,
+          signature: drop.signature,
+          claimedAt: drop.claimedAt,
+        })),
+      };
+      const vault = await buildEncryptedVault(snapshot, vaultPassphrase);
+      const blob = new Blob([JSON.stringify(vault, null, 2)], { type: "application/json" });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `darkdrop-vault-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+      anchor.click();
+      window.URL.revokeObjectURL(url);
+      setVaultStatus("Encrypted vault exported.");
+    } catch (error) {
+      setVaultStatus(error instanceof Error ? error.message : "Vault export failed.");
+    } finally {
+      setVaultBusy(false);
     }
   };
 
@@ -178,6 +226,27 @@ export default function HistoryPage() {
             <pre className="max-h-32 overflow-y-auto bg-black/60 p-3 text-xs">{recoverClaimCode}</pre>
           </div>
         )}
+      </section>
+
+      <section className="border border-[rgba(0,255,65,0.2)] bg-[var(--card)] p-5 text-xs">
+        <p className="text-sm tracking-[0.3em] text-[var(--accent)]">LOCAL PRIVACY VAULT</p>
+        <p className="mt-2 text-[rgba(224,224,224,0.7)]">
+          Export an encrypted vault file for offline storage or local watchtower monitoring. Passphrase never
+          leaves your device.
+        </p>
+        <div className="mt-3 flex flex-col gap-3 md:flex-row">
+          <input
+            type="password"
+            value={vaultPassphrase}
+            onChange={(event) => setVaultPassphrase(event.target.value)}
+            placeholder="Vault passphrase"
+            className="flex-1"
+          />
+          <button type="button" onClick={handleVaultExport} className="px-4 py-2" disabled={vaultBusy}>
+            {vaultBusy ? "EXPORTING..." : "EXPORT VAULT"}
+          </button>
+        </div>
+        {vaultStatus && <p className="mt-3 text-[rgba(224,224,224,0.7)]">{vaultStatus}</p>}
       </section>
     </div>
   );
