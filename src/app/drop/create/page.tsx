@@ -13,6 +13,7 @@ import { QRDisplay } from "@/components/QRDisplay";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
 import { amountToUnits } from "@/lib/amount";
 import { generateDrop, type DropPayload } from "@/lib/drop";
+import { createShieldSendFn } from "@/lib/shield-relay";
 import { generateConfidentialProof } from "@/lib/confidential/proofClient";
 import { getConfidentialSupport, planConfidentialTransfer } from "@/lib/confidential/transfers";
 import {
@@ -68,7 +69,7 @@ type BatchProgress = {
 
 export default function CreateDropPage() {
   const { connection } = useConnection();
-  const { publicKey, connected, sendTransaction } = useWallet();
+  const { publicKey, connected, sendTransaction, signTransaction } = useWallet();
   const addSentDrop = useHistoryStore((state) => state.addSentDrop);
   const cluster = useSettingsStore((state) => state.cluster);
   const preferredAsset = useSettingsStore((state) => state.preferredAsset);
@@ -232,9 +233,14 @@ export default function CreateDropPage() {
     if (ultraPrivateMode && !useZkElgamal) {
       setShielding(true);
       try {
-        const sendTxFn = async (tx: Transaction): Promise<string> => {
-          return await sendTransaction(tx, connection, { skipPreflight: false });
-        };
+        const sendTxFn = signTransaction
+          ? createShieldSendFn(
+              new PublicKey(process.env.NEXT_PUBLIC_RELAYER_PUBKEY!),
+              signTransaction
+            )
+          : async (tx: Transaction): Promise<string> => {
+              return await sendTransaction(tx, connection, { skipPreflight: false });
+            };
 
         const drop = await generateDrop({
           asset,
