@@ -1,25 +1,18 @@
 "use client";
-
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { createAssociatedTokenAccountInstruction, createTransferInstruction, getAssociatedTokenAddress } from "@solana/spl-token";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import { RefreshCcw, Shield, ShieldAlert, ShieldOff, Zap, Radio } from "lucide-react";
-
-import { ConfidentialPreviewCard } from "@/components/ConfidentialPreviewCard";
-import { DropCard } from "@/components/DropCard";
-import { QRScanner } from "@/components/QRScanner";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
+import { QRScanner } from "@/components/QRScanner";
 import { unitsToAmount } from "@/lib/amount";
 import { claimDrop, unshieldDrop } from "@/lib/drop";
 import { AssetSymbol, ClusterType, CLUSTER_LABELS, getAssetDecimals, getAssetMint, getAssetProgramId, getAssetSymbol } from "@/lib/tokens";
 import { generateNullifier, getNullifierRegistry } from "@/lib/nullifier";
 import { createRpc } from "@lightprotocol/stateless.js";
 import BN from "bn.js";
-
-import { getConfidentialSupport, planConfidentialAccount, planConfidentialTransfer } from "@/lib/confidential/transfers";
 import { useBurnerStore } from "@/store/burner";
 import { useHistoryStore } from "@/store/history";
 import { useSettingsStore } from "@/store/settings";
@@ -46,58 +39,39 @@ function ClaimDropContent() {
 
   const [claimCode, setClaimCode] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [burner, setBurnerState] = useState<BurnerState | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sweeping, setSweeping] = useState(false);
-  const [confidentialNotes, setConfidentialNotes] = useState<string[]>([]);
-  
-  // Relayer mode state
   const [useRelayer, setUseRelayer] = useState(false);
   const [customDestination, setCustomDestination] = useState("");
   const [relayerStatus, setRelayerStatus] = useState<{ online: boolean; fee: number } | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const codeParam = searchParams.get("code");
-    if (codeParam && !claimCode) {
-      setClaimCode(codeParam);
-    }
+    if (codeParam && !claimCode) setClaimCode(codeParam);
   }, [searchParams, claimCode]);
 
-  const fetchBalance = async (
-    keypair: Keypair,
-    asset: AssetSymbol,
-    dropCluster: ClusterType,
-    options?: { compressed?: boolean }
-  ) => {
-    // Handle compressed tokens/SOL
+  const fetchBalance = async (keypair: Keypair, asset: AssetSymbol, dropCluster: ClusterType, options?: { compressed?: boolean }) => {
     if (options?.compressed) {
       const compressionApiEndpoint = process.env.NEXT_PUBLIC_LIGHT_COMPRESSION_API;
-      const rpc = compressionApiEndpoint 
-        ? createRpc(connection, compressionApiEndpoint)
-        : createRpc(connection); // Defaults to same endpoint as connection
-      
+      const rpc = compressionApiEndpoint ? createRpc(connection, compressionApiEndpoint) : createRpc(connection);
       if (asset === "sol") {
-        // Get compressed SOL accounts
         const compressedAccounts = await rpc.getCompressedAccountsByOwner(keypair.publicKey);
         const { sumUpLamports } = await import("@lightprotocol/stateless.js");
         const totalBalance = sumUpLamports(compressedAccounts.items);
         return BigInt(totalBalance.toString());
-      } else if (asset === "usdc") {
-        // Get compressed USDC accounts
+      } else {
         const mintAddress = getAssetMint(asset, dropCluster);
         if (!mintAddress) return 0n;
         const mint = new PublicKey(mintAddress);
         const accounts = await rpc.getCompressedTokenAccountsByOwner(keypair.publicKey, { mint });
-        const totalBalance = accounts.items.reduce(
-          (sum, account) => sum.add(account.parsed.amount),
-          new BN(0)
-        );
+        const totalBalance = accounts.items.reduce((sum, account) => sum.add(account.parsed.amount), new BN(0));
         return BigInt(totalBalance.toString());
       }
     }
-    
-    // Regular token/SOL balance
     if (asset === "sol") {
       const lamports = await connection.getBalance(keypair.publicKey, "confirmed");
       return BigInt(lamports);
@@ -115,137 +89,66 @@ function ClaimDropContent() {
   const loadDrop = async () => {
     setError(null);
     setStatus(null);
+    setLoading(true);
     try {
       const parsed = claimDrop(claimCode, {
         password: password.trim() ? password : undefined,
         fallbackCluster: cluster,
       });
-
       if (parsed.cluster !== cluster) {
         setError(`Drop was created on ${CLUSTER_LABELS[parsed.cluster]}, which DarkDrop no longer supports.`);
         return;
       }
-
-      const support = getConfidentialSupport(parsed.asset);
-
-      if (support.supported) {
-
-        const plan = await planConfidentialAccount({
-
-          connection,
-
-          asset: parsed.asset,
-
-          owner: parsed.keypair.publicKey,
-
-          destination: mainWallet ?? parsed.keypair.publicKey,
-
-        });
-
-        setConfidentialNotes(plan.notes);
-
-      } else if (support.reason) {
-
-        setConfidentialNotes([support.reason]);
-
-      }
-
-
-
-      // Handle compressed token drops
       if (parsed.compressed) {
         const balance = await fetchBalance(parsed.keypair, parsed.asset, parsed.cluster, { compressed: true });
         setBurner(parsed.keypair);
-        setBurnerState({
-          keypair: parsed.keypair,
-          balance,
-          asset: parsed.asset,
-          cluster: parsed.cluster,
-          compressed: true,
-        });
-        setStatus("Compressed token drop loaded. Ready to decompress.");
-        setConfidentialNotes(["Compressed Token Drop · Amounts hidden via zk-compression"]);
+        setBurnerState({ keypair: parsed.keypair, balance, asset: parsed.asset, cluster: parsed.cluster, compressed: true });
+        setStatus("Compressed drop loaded. Ready to decompress.");
         return;
       }
-
       const balance = await fetchBalance(parsed.keypair, parsed.asset, parsed.cluster);
       setBurner(parsed.keypair);
-      setBurnerState({
-        keypair: parsed.keypair,
-        balance,
-        asset: parsed.asset,
-        cluster: parsed.cluster,
-        shielded: false,
-      });
+      setBurnerState({ keypair: parsed.keypair, balance, asset: parsed.asset, cluster: parsed.cluster, shielded: false });
       setStatus("Burner imported. Ready to sweep.");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to parse claim code.");
       setBurnerState(null);
       setBurner(null);
+    } finally {
+      setLoading(false);
     }
   };
 
   const refreshBalance = async () => {
     if (!burner) return;
-    const balance = await fetchBalance(burner.keypair, burner.asset, burner.cluster, {
-      compressed: burner.compressed,
-    });
+    const balance = await fetchBalance(burner.keypair, burner.asset, burner.cluster, { compressed: burner.compressed });
     setBurnerState({ ...burner, balance });
   };
 
   const sweepDrop = async () => {
-    if (!burner) {
-      setError("No burner loaded.");
-      return;
-    }
-    if (!mainWallet) {
-      setError("Connect your main wallet first.");
-      return;
-    }
+    if (!burner) { setError("No burner loaded."); return; }
+    if (!mainWallet) { setError("Connect your main wallet first."); return; }
 
-    // Handle compressed token drops (decompress via Light Protocol)
     if (burner.compressed) {
       setSweeping(true);
       setError(null);
       try {
-        if (!mainWallet || !sendTransaction) {
-          throw new Error("Wallet not connected");
-        }
-
+        if (!sendTransaction) throw new Error("Wallet not connected");
         const sendTxFn = async (tx: Transaction): Promise<string> => {
-          // Transaction is already partially signed with recipient keypair
-          // Wallet adapter will sign with connected wallet (fee payer)
           return await sendTransaction(tx, connection, { skipPreflight: false });
         };
-
         const assetForLight = burner.asset === "usdc" ? "USDC" : "SOL";
-        const signature = await unshieldDrop(
-          burner.keypair,
-          assetForLight,
-          burner.balance,
-          mainWallet, // For SOL, this is the recipient. For USDC, we'll get ATA inside unshieldDrop
-          connection,
-          mainWallet,
-          sendTxFn
-        );
-
+        const signature = await unshieldDrop(burner.keypair, assetForLight, burner.balance, mainWallet, connection, mainWallet, sendTxFn);
         updateDropStatus("compressed", "claimed");
         addClaimedDrop({
           address: burner.keypair.publicKey.toBase58(),
           amount: (Number(burner.balance) / Math.pow(10, getAssetDecimals(burner.asset))).toString(),
-          asset: burner.asset,
-          cluster: burner.cluster,
-          signature,
-          claimedAt: new Date().toISOString(),
+          asset: burner.asset, cluster: burner.cluster, signature, claimedAt: new Date().toISOString(),
         });
-
         setStatus("Compressed tokens decompressed successfully.");
-        setBurnerState(null);
-        setBurner(null);
-        setClaimCode("");
-        setPassword("");
-      } catch (decompressError) {
-        setError(decompressError instanceof Error ? decompressError.message : "Decompress failed.");
+        setBurnerState(null); setBurner(null); setClaimCode(""); setPassword("");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Decompress failed.");
       } finally {
         setSweeping(false);
       }
@@ -253,116 +156,64 @@ function ClaimDropContent() {
     }
 
     const decimals = getAssetDecimals(burner.asset);
+    if (burner.asset === "sol" && burner.balance <= DUST_THRESHOLD) { setError("Nothing to sweep."); return; }
+    if (burner.asset === "usdc" && burner.balance <= 0n) { setError("No USDC remaining to sweep."); return; }
 
-    if (burner.asset === "sol" && burner.balance <= DUST_THRESHOLD) {
-      setError("Nothing to sweep.");
-      return;
-    }
-
-    if (burner.asset === "usdc" && burner.balance <= 0n) {
-      setError("No USDC remaining to sweep.");
-      return;
-    }
-    // Check nullifier for regular drops (compressed drops check in unshieldDrop)
     if (!burner.compressed) {
       const nullifier = generateNullifier(burner.keypair);
       const registry = getNullifierRegistry();
       const isUsed = await registry.isUsed(nullifier);
-      
-      if (isUsed) {
-        setError("This drop has already been claimed. Nullifier already used.");
-        return;
-      }
-      
-      console.log(`[Nullifier] Checking nullifier for regular drop: ${nullifier.substring(0, 16)}... (not used)`);
+      if (isUsed) { setError("This drop has already been claimed."); return; }
     }
 
     setSweeping(true);
     setError(null);
-
     try {
-    if (burner.asset === "sol") {
+      if (burner.asset === "sol") {
         const lamports = burner.balance - DUST_THRESHOLD;
         if (lamports <= 0n) throw new Error("Not enough SOL to cover fees.");
         const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
-        const tx = new Transaction().add(
-          SystemProgram.transfer({
-            fromPubkey: burner.keypair.publicKey,
-            toPubkey: mainWallet,
-            lamports: Number(lamports),
-          })
-        );
+        const tx = new Transaction().add(SystemProgram.transfer({ fromPubkey: burner.keypair.publicKey, toPubkey: mainWallet, lamports: Number(lamports) }));
         tx.recentBlockhash = blockhash;
         tx.feePayer = burner.keypair.publicKey;
         tx.sign(burner.keypair);
         const signature = await connection.sendRawTransaction(tx.serialize());
         await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
-
-        // Mark nullifier as used for regular SOL drops
         if (!burner.compressed) {
           const nullifier = generateNullifier(burner.keypair);
           const registry = getNullifierRegistry();
           await registry.markUsed(nullifier, signature);
-          console.log(`[Nullifier] Marked nullifier as used for regular SOL drop`);
         }
-
         updateDropStatus(burner.keypair.publicKey.toBase58(), "claimed");
-        addClaimedDrop({
-          address: burner.keypair.publicKey.toBase58(),
-          amount: unitsToAmount(lamports, decimals, 6),
-          asset: burner.asset,
-          cluster: burner.cluster,
-          signature,
-          claimedAt: new Date().toISOString(),
-        });
-    } else {
-      const mintAddress = getAssetMint(burner.asset, burner.cluster);
-      const tokenProgramId = getAssetProgramId(burner.asset);
-      if (!mintAddress || !tokenProgramId) throw new Error("Missing token mint for USDC.");
-      const mint = new PublicKey(mintAddress);
-      const sourceAta = await getAssociatedTokenAddress(mint, burner.keypair.publicKey, true, tokenProgramId);
-      const destAta = await getAssociatedTokenAddress(mint, mainWallet, true, tokenProgramId);
-      const instructions = [];
-      const destInfo = await connection.getAccountInfo(destAta);
-      if (!destInfo) {
-        instructions.push(createAssociatedTokenAccountInstruction(mainWallet, destAta, mainWallet, mint, tokenProgramId));
+        addClaimedDrop({ address: burner.keypair.publicKey.toBase58(), amount: unitsToAmount(lamports, decimals, 6), asset: burner.asset, cluster: burner.cluster, signature, claimedAt: new Date().toISOString() });
+      } else {
+        const mintAddress = getAssetMint(burner.asset, burner.cluster);
+        const tokenProgramId = getAssetProgramId(burner.asset);
+        if (!mintAddress || !tokenProgramId) throw new Error("Missing token mint for USDC.");
+        const mint = new PublicKey(mintAddress);
+        const sourceAta = await getAssociatedTokenAddress(mint, burner.keypair.publicKey, true, tokenProgramId);
+        const destAta = await getAssociatedTokenAddress(mint, mainWallet, true, tokenProgramId);
+        const instructions = [];
+        const destInfo = await connection.getAccountInfo(destAta);
+        if (!destInfo) instructions.push(createAssociatedTokenAccountInstruction(mainWallet, destAta, mainWallet, mint, tokenProgramId));
+        instructions.push(createTransferInstruction(sourceAta, destAta, burner.keypair.publicKey, Number(burner.balance), [], tokenProgramId));
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+        const tx = new Transaction().add(...instructions);
+        tx.recentBlockhash = blockhash;
+        tx.feePayer = burner.keypair.publicKey;
+        tx.sign(burner.keypair);
+        const signature = await connection.sendRawTransaction(tx.serialize());
+        await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
+        if (!burner.compressed) {
+          const nullifier = generateNullifier(burner.keypair);
+          const registry = getNullifierRegistry();
+          await registry.markUsed(nullifier, signature);
+        }
+        updateDropStatus(burner.keypair.publicKey.toBase58(), "claimed");
+        addClaimedDrop({ address: burner.keypair.publicKey.toBase58(), amount: unitsToAmount(burner.balance, decimals, 4), asset: burner.asset, cluster: burner.cluster, signature, claimedAt: new Date().toISOString() });
       }
-
-      instructions.push(
-        createTransferInstruction(sourceAta, destAta, burner.keypair.publicKey, Number(burner.balance), [], tokenProgramId)
-      );
-
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
-      const tx = new Transaction().add(...instructions);
-      tx.recentBlockhash = blockhash;
-      tx.feePayer = burner.keypair.publicKey;
-      tx.sign(burner.keypair);
-      const signature = await connection.sendRawTransaction(tx.serialize());
-      await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
-
-      if (!burner.compressed) {
-        const nullifier = generateNullifier(burner.keypair);
-        const registry = getNullifierRegistry();
-        await registry.markUsed(nullifier, signature);
-        console.log(`[Nullifier] Marked nullifier as used for regular USDC drop`);
-      }
-
-      updateDropStatus(burner.keypair.publicKey.toBase58(), "claimed");
-      addClaimedDrop({
-        address: burner.keypair.publicKey.toBase58(),
-        amount: unitsToAmount(burner.balance, decimals, 4),
-        asset: burner.asset,
-        cluster: burner.cluster,
-        signature,
-        claimedAt: new Date().toISOString(),
-      });
-    }
-
       setStatus("Drop claimed. Burner destroyed.");
-      setBurnerState(null);
-      setBurner(null);
-      setClaimCode("");
-      setPassword("");
+      setBurnerState(null); setBurner(null); setClaimCode(""); setPassword("");
     } catch (txError) {
       setError(txError instanceof Error ? txError.message : "Sweep failed.");
     } finally {
@@ -370,7 +221,6 @@ function ClaimDropContent() {
     }
   };
 
-  // Check relayer status
   const checkRelayerStatus = async () => {
     try {
       const response = await fetch("/api/relay/claim");
@@ -385,71 +235,29 @@ function ClaimDropContent() {
     }
   };
 
-  // Claim via relayer (no wallet connection needed)
   const claimViaRelayer = async () => {
-    if (!burner) {
-      setError("No drop loaded.");
-      return;
-    }
-
-    if (!burner.compressed) {
-      setError("Relayer only supports compressed drops (Ultra Private Mode).");
-      return;
-    }
-
+    if (!burner) { setError("No drop loaded."); return; }
+    if (!burner.compressed) { setError("Relayer only supports compressed drops."); return; }
     const destination = customDestination.trim() || mainWallet?.toBase58();
-    if (!destination) {
-      setError("Enter a destination wallet address or connect your wallet.");
-      return;
-    }
-
-    // Validate destination address
-    try {
-      new PublicKey(destination);
-    } catch {
-      setError("Invalid destination wallet address.");
-      return;
-    }
-
+    if (!destination) { setError("Enter a destination wallet address or connect your wallet."); return; }
+    try { new PublicKey(destination); } catch { setError("Invalid destination wallet address."); return; }
     setSweeping(true);
     setError(null);
-
     try {
       const response = await fetch("/api/relay/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          claimCode: claimCode,
-          destination: destination,
-        }),
+        body: JSON.stringify({ claimCode, destination }),
       });
-
       const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || "Relayer claim failed");
-      }
-
+      if (!response.ok || !result.success) throw new Error(result.error || "Relayer claim failed");
       const decimals = getAssetDecimals(burner.asset);
       const amountReceived = result.amountReceived / Math.pow(10, decimals);
       const feePaid = result.feePaid / Math.pow(10, decimals);
-
       updateDropStatus("compressed", "claimed");
-      addClaimedDrop({
-        address: burner.keypair.publicKey.toBase58(),
-        amount: amountReceived.toString(),
-        asset: burner.asset,
-        cluster: burner.cluster,
-        signature: result.signature,
-        claimedAt: new Date().toISOString(),
-      });
-
-      setStatus(`Claimed via relayer! Received ${amountReceived.toFixed(4)} ${getAssetSymbol(burner.asset)} (${feePaid.toFixed(4)} fee)`);
-      setBurnerState(null);
-      setBurner(null);
-      setClaimCode("");
-      setPassword("");
-      setCustomDestination("");
+      addClaimedDrop({ address: burner.keypair.publicKey.toBase58(), amount: amountReceived.toString(), asset: burner.asset, cluster: burner.cluster, signature: result.signature, claimedAt: new Date().toISOString() });
+      setStatus(`Claimed via relayer. Received ${amountReceived.toFixed(4)} ${getAssetSymbol(burner.asset)} (${feePaid.toFixed(4)} fee)`);
+      setBurnerState(null); setBurner(null); setClaimCode(""); setPassword(""); setCustomDestination("");
     } catch (relayError) {
       setError(relayError instanceof Error ? relayError.message : "Relayer claim failed.");
     } finally {
@@ -458,209 +266,221 @@ function ClaimDropContent() {
   };
 
   const balanceDisplay = burner
-    ? burner.shielded
-      ? "Hidden (shielded)"
-      : `${unitsToAmount(
-          burner.balance,
-          getAssetDecimals(burner.asset),
-          burner.asset === "sol" ? 6 : 4
-        )} ${getAssetSymbol(burner.asset)}`
+    ? `${unitsToAmount(burner.balance, getAssetDecimals(burner.asset), burner.asset === "sol" ? 6 : 4)} ${getAssetSymbol(burner.asset)}`
     : "0";
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-10 px-6 py-16">
-      <div className="flex flex-col gap-4">
-        <Link href="/" className="text-xs tracking-[0.4em] text-[var(--accent)]">
-          DARKDROP / CLAIM
-        </Link>
-        <p className="text-2xl font-semibold tracking-[0.3em] text-white">Claim a Dead Drop</p>
+    <div className="relative flex min-h-screen flex-col">
+      {/* NAV */}
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between border-b border-[rgba(0,255,65,0.12)] bg-[rgba(0,0,0,0.92)] px-8 backdrop-blur-md" style={{height:"52px"}}>
+        <span className="font-mono text-[13px] tracking-[0.22em] text-[var(--accent)]">DARKDROP</span>
+        <div className="flex items-center gap-1 border border-[rgba(0,255,65,0.15)] px-1 py-1">
+          <Link href="/" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">HOME</Link>
+          <Link href="/drop/create" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">CREATE</Link>
+          <Link href="/drop/claim" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[var(--accent)]">CLAIM</Link>
+        </div>
         <WalletConnectButton />
-      </div>
+      </nav>
 
-      <DropCard title="SCAN OR PASTE" subtitle="Load claim string manually or via camera.">
-        <label className="block text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
-          CLAIM CODE
-          <textarea
-            value={claimCode}
-            onChange={(event) => setClaimCode(event.target.value)}
-            rows={4}
-            className="mt-2 w-full"
-            placeholder="darkdrop:v2:mainnet:sol:compressed:raw:..."
-          />
-        </label>
-        <label className="block text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
-          PASSWORD
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="mt-2 w-full"
-            placeholder="required if encrypted"
-          />
-        </label>
+      <main className="mx-auto w-full max-w-xl px-6 pb-20" style={{paddingTop:"80px"}}>
+        <div className="mb-8">
+          <p className="mb-2 font-mono text-[9px] tracking-[0.3em] text-[rgba(0,255,65,0.35)]">OUTPUT // 0X02</p>
+          <h1 className="font-mono text-[clamp(24px,4vw,36px)] font-light leading-[1.15] text-[var(--text)]">Claim a<br />dead drop.</h1>
+          <p className="mt-3 text-xs leading-relaxed text-[rgba(224,224,224,0.45)]">Paste the claim string below. Funds sweep directly to your connected wallet.</p>
+        </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <QRScanner onScan={(code) => setClaimCode(code)} />
-          <div className="flex flex-col gap-4 text-xs text-[rgba(224,224,224,0.7)]">
-            <p>
-              Ensure nobody is observing your screen. Once loaded, the burner wallet is exposed inside the wallet modal as
-              <span className="text-[var(--accent)]"> Burner Import</span>.
-            </p>
-            <button type="button" onClick={loadDrop} className="w-full justify-center">
-              LOAD DROP
-            </button>
-            {status && (
-              <p className="flex items-center gap-2 text-xs text-[var(--accent)]">
-                <Shield size={16} />
-                {status}
-              </p>
-            )}
-            {error && (
-              <p className="flex items-center gap-2 text-xs text-[var(--danger)]">
-                <ShieldAlert size={16} />
-                {error}
-              </p>
-            )}
+        {/* CLAIM CODE INPUT */}
+        <div className="mb-3 border border-[rgba(0,255,65,0.1)] bg-[#050505]">
+          <div className="border-b border-[rgba(0,255,65,0.1)] px-5 py-3">
+            <span className="font-mono text-[9px] tracking-[0.28em] text-[rgba(224,224,224,0.2)]">CLAIM STRING</span>
+          </div>
+          <div className="p-4 flex flex-col gap-3">
+            <textarea
+              value={claimCode}
+              onChange={(e) => setClaimCode(e.target.value)}
+              rows={3}
+              placeholder="darkdrop:v2:mainnet:sol:..."
+              className="w-full border border-[rgba(0,255,65,0.2)] bg-[#020202] px-4 py-3 font-mono text-[11px] leading-relaxed text-[var(--text)] placeholder-[rgba(224,224,224,0.12)] focus:border-[var(--accent)] focus:outline-none resize-none"
+            />
+            <QRScanner onScan={(code) => setClaimCode(code)} />
           </div>
         </div>
-      </DropCard>
 
-      {burner && (
-        <DropCard
-          title={burner.shielded ? "UNSHIELD" : "SWEEP"}
-          subtitle={
-            burner.shielded
-              ? "Unshield the note to your main wallet via Light Protocol."
-              : "Inspect burner balance and push everything to your main wallet."
-          }
-        >
-          <div className="flex flex-col gap-4">
-            {!burner.shielded && (
-              <p className="text-sm text-[rgba(224,224,224,0.8)]">
-                Burner address: <span className="text-[var(--accent)]">{burner.keypair.publicKey.toBase58()}</span>
-              </p>
-            )}
-            <p className="text-sm text-[rgba(224,224,224,0.8)]">
-              Asset: <strong>{getAssetSymbol(burner.asset)}</strong> · Cluster: {CLUSTER_LABELS[burner.cluster]}
-            </p>
-            <p className="text-sm text-[rgba(224,224,224,0.8)]">Balance: <strong>{balanceDisplay}</strong></p>
-            {confidentialNotes.length > 0 && (
-              <ConfidentialPreviewCard
-                enabled
-                interactive={false}
-                notes={confidentialNotes}
-                description="Proof + decrypt steps will show here once private rails go live."
-                label="CONFIDENTIAL ACCOUNT NOTES"
+        {/* PASSWORD */}
+        <div className="mb-3 border border-[rgba(0,255,65,0.1)] bg-[#050505]">
+          <div className="border-b border-[rgba(0,255,65,0.1)] px-5 py-3">
+            <span className="font-mono text-[9px] tracking-[0.28em] text-[rgba(224,224,224,0.2)]">PASSWORD <span className="text-[rgba(224,224,224,0.15)]">— IF ENCRYPTED</span></span>
+          </div>
+          <div className="p-4">
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Required if encrypted..."
+                className="w-full border border-[rgba(0,255,65,0.2)] bg-[#020202] px-4 py-3 pr-16 font-mono text-sm text-[var(--text)] placeholder-[rgba(224,224,224,0.15)] focus:border-[var(--accent)] focus:outline-none"
               />
-            )}
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 border-none bg-transparent px-2 py-1 font-mono text-[9px] tracking-[0.1em] text-[rgba(224,224,224,0.3)] hover:text-[rgba(224,224,224,0.6)]"
+              >
+                {showPassword ? "HIDE" : "SHOW"}
+              </button>
+            </div>
+          </div>
+        </div>
 
-            {/* Relayer Mode Toggle - Only for compressed drops */}
+        {error && (
+          <div className="mb-3 border border-[rgba(255,0,68,0.2)] bg-[rgba(255,0,68,0.04)] px-5 py-3">
+            <p className="text-xs text-[var(--danger)]">{error}</p>
+          </div>
+        )}
+
+        {status && !burner && (
+          <div className="mb-3 border border-[rgba(0,255,65,0.2)] bg-[rgba(0,255,65,0.04)] px-5 py-3">
+            <p className="text-xs text-[var(--accent)]">{status}</p>
+          </div>
+        )}
+
+        {!burner && (
+          <button
+            type="button"
+            onClick={loadDrop}
+            disabled={loading || !claimCode.trim()}
+            className="w-full border-[var(--accent)] bg-[var(--accent)] py-4 font-mono text-[10px] font-medium tracking-[0.2em] text-black transition-all hover:bg-[#33ff66] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {loading ? "LOADING..." : "LOAD DROP"}
+          </button>
+        )}
+
+        {/* BURNER LOADED */}
+        {burner && (
+          <>
+            <div className="mb-3 border border-[rgba(0,255,65,0.2)] bg-[#050505]">
+              <div className="border-b border-[rgba(0,255,65,0.15)] px-5 py-3 flex items-center gap-3">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)] shadow-[0_0_6px_var(--accent)]" />
+                <span className="font-mono text-[9px] tracking-[0.28em] text-[rgba(0,255,65,0.6)]">DROP DETAILS</span>
+              </div>
+              <div className="divide-y divide-[rgba(0,255,65,0.06)]">
+                <div className="flex items-center justify-between px-5 py-3">
+                  <span className="text-xs text-[rgba(224,224,224,0.4)]">Balance</span>
+                  <span className="font-mono text-[13px] text-[var(--accent)]">{balanceDisplay}</span>
+                </div>
+                <div className="flex items-center justify-between px-5 py-3">
+                  <span className="text-xs text-[rgba(224,224,224,0.4)]">Asset</span>
+                  <span className="font-mono text-[11px] text-[var(--text)]">{getAssetSymbol(burner.asset)}</span>
+                </div>
+                <div className="flex items-center justify-between px-5 py-3">
+                  <span className="text-xs text-[rgba(224,224,224,0.4)]">Mode</span>
+                  <span className="font-mono text-[11px] text-[var(--text)]">{burner.compressed ? "Compressed (ZK)" : "Raw Burner"}</span>
+                </div>
+                <div className="flex items-center justify-between px-5 py-3">
+                  <span className="text-xs text-[rgba(224,224,224,0.4)]">Nullifier</span>
+                  <span className="font-mono text-[10px] text-[rgba(224,224,224,0.3)]">{generateNullifier(burner.keypair).slice(0,8)}...{generateNullifier(burner.keypair).slice(-6)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* CLAIM MODE — compressed only */}
             {burner.compressed && (
-              <div className="border border-[rgba(0,255,65,0.2)] bg-black/30 p-4 space-y-4">
-                <p className="text-xs tracking-[0.4em] text-[var(--accent)]">CLAIM MODE</p>
-                <div className="grid grid-cols-2 gap-3">
+              <div className="mb-3 border border-[rgba(0,255,65,0.1)] bg-[#050505]">
+                <div className="border-b border-[rgba(0,255,65,0.1)] px-5 py-3">
+                  <span className="font-mono text-[9px] tracking-[0.28em] text-[rgba(224,224,224,0.2)]">CLAIM MODE</span>
+                </div>
+                <div className="flex divide-x divide-[rgba(0,255,65,0.08)]">
                   <button
                     type="button"
                     onClick={() => setUseRelayer(false)}
-                    className={`p-3 text-left ${!useRelayer ? 'border-[var(--accent)] bg-[rgba(0,255,65,0.08)]' : 'border-[rgba(0,255,65,0.2)]'}`}
+                    className={`flex-1 px-4 py-4 text-left transition-colors ${!useRelayer ? "bg-[rgba(0,255,65,0.05)] border-none" : "border-none"}`}
                   >
-                    <div className="flex items-center gap-2 text-sm font-mono">
-                      <Zap size={14} />
-                      DIRECT
-                    </div>
-                    <p className="text-xs text-[rgba(224,224,224,0.6)] mt-1">You pay gas</p>
-                    <p className="text-xs text-[rgba(224,224,224,0.6)]">Requires funded wallet</p>
+                    <p className={`font-mono text-[10px] tracking-[0.12em] ${!useRelayer ? "text-[var(--accent)]" : "text-[rgba(224,224,224,0.4)]"}`}>DIRECT</p>
+                    <p className="mt-1 text-[11px] text-[rgba(224,224,224,0.35)]">You pay gas</p>
                   </button>
                   <button
                     type="button"
                     onClick={() => { setUseRelayer(true); checkRelayerStatus(); }}
-                    className={`p-3 text-left ${useRelayer ? 'border-[var(--accent)] bg-[rgba(0,255,65,0.08)]' : 'border-[rgba(0,255,65,0.2)]'}`}
+                    className={`flex-1 px-4 py-4 text-left transition-colors ${useRelayer ? "bg-[rgba(0,255,65,0.05)] border-none" : "border-none"}`}
                   >
-                    <div className="flex items-center gap-2 text-sm font-mono">
-                      <Radio size={14} />
-                      RELAYER
-                    </div>
-                    <p className="text-xs text-[rgba(224,224,224,0.6)] mt-1">1% fee, relayer pays gas</p>
-                    <p className="text-xs text-[var(--accent)]">Fresh 0 SOL wallet OK</p>
+                    <p className={`font-mono text-[10px] tracking-[0.12em] ${useRelayer ? "text-[var(--accent)]" : "text-[rgba(224,224,224,0.4)]"}`}>RELAYER</p>
+                    <p className="mt-1 text-[11px] text-[rgba(224,224,224,0.35)]">1% fee · no SOL needed</p>
                   </button>
                 </div>
-
                 {useRelayer && (
-                  <div className="space-y-3 pt-2 border-t border-[rgba(0,255,65,0.1)]">
+                  <div className="border-t border-[rgba(0,255,65,0.08)] p-4 space-y-3">
                     {relayerStatus && (
-                      <p className={`text-xs ${relayerStatus.online ? 'text-[var(--accent)]' : 'text-[var(--danger)]'}`}>
-                        Relayer: {relayerStatus.online ? 'Online' : 'Offline'} | Fee: 1%
+                      <p className={`font-mono text-[9px] tracking-[0.15em] ${relayerStatus.online ? "text-[var(--accent)]" : "text-[var(--danger)]"}`}>
+                        RELAYER {relayerStatus.online ? "ONLINE" : "OFFLINE"} · FEE 1%
                       </p>
                     )}
-                    <label className="block text-xs tracking-[0.3em] text-[rgba(224,224,224,0.6)]">
-                      DESTINATION WALLET
-                      <input
-                        type="text"
-                        value={customDestination}
-                        onChange={(e) => setCustomDestination(e.target.value)}
-                        placeholder={mainWallet?.toBase58() || "Enter fresh wallet address..."}
-                        className="mt-2 w-full text-sm"
-                      />
-                    </label>
-                    <p className="text-xs text-[rgba(224,224,224,0.5)]">
-                      Can be any wallet - no SOL needed. Leave empty to use connected wallet.
-                    </p>
+                    <input
+                      type="text"
+                      value={customDestination}
+                      onChange={(e) => setCustomDestination(e.target.value)}
+                      placeholder={mainWallet?.toBase58() || "Destination wallet address..."}
+                      className="w-full border border-[rgba(0,255,65,0.2)] bg-[#020202] px-4 py-3 font-mono text-[11px] text-[var(--text)] placeholder-[rgba(224,224,224,0.15)] focus:border-[var(--accent)] focus:outline-none"
+                    />
+                    <p className="text-[10px] text-[rgba(224,224,224,0.3)]">Any wallet — no SOL required. Leave empty to use connected wallet.</p>
                   </div>
                 )}
               </div>
             )}
 
-            <div className="flex gap-3">
-              <button type="button" onClick={refreshBalance} className="flex flex-1 items-center justify-center gap-2">
-                <RefreshCcw size={16} />
-                REFRESH BALANCE
+            {status && (
+              <div className="mb-3 border border-[rgba(0,255,65,0.15)] bg-[rgba(0,255,65,0.03)] px-5 py-3">
+                <p className="text-xs text-[var(--accent)]">{status}</p>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={refreshBalance}
+                className="border-[rgba(0,255,65,0.2)] px-4 py-3 font-mono text-[9px] tracking-[0.15em] text-[rgba(224,224,224,0.4)] transition-colors hover:text-[var(--accent)]"
+              >
+                REFRESH
               </button>
               {useRelayer && burner.compressed ? (
                 <button
                   type="button"
                   onClick={claimViaRelayer}
                   disabled={sweeping || !!(relayerStatus && !relayerStatus.online)}
-                  className="flex flex-1 items-center justify-center gap-2 border-[rgba(0,255,65,0.6)] bg-[rgba(0,255,65,0.08)] text-[var(--accent)]"
+                  className="flex-1 border-[var(--accent)] bg-[var(--accent)] py-3 font-mono text-[10px] font-medium tracking-[0.2em] text-black transition-all hover:bg-[#33ff66] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Radio size={16} />
-                  {sweeping ? "CLAIMING VIA RELAYER..." : "CLAIM VIA RELAYER"}
+                  {sweeping ? "CLAIMING..." : "CLAIM VIA RELAYER"}
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={sweepDrop}
                   disabled={sweeping}
-                  className="flex flex-1 items-center justify-center gap-2 border-[rgba(255,0,68,0.6)] bg-[rgba(255,0,68,0.08)] text-[var(--danger)]"
+                  className="flex-1 border-[rgba(255,0,68,0.4)] bg-[rgba(255,0,68,0.08)] py-3 font-mono text-[10px] tracking-[0.2em] text-[var(--danger)] transition-all hover:bg-[rgba(255,0,68,0.15)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <ShieldOff size={16} />
                   {sweeping
-                    ? burner.compressed
-                      ? "DECOMPRESSING..."
-                      : burner.shielded
-                      ? "UNSHIELDING..."
-                      : "PURGING..."
-                    : burner.compressed
-                      ? "DECOMPRESS TO MAIN WALLET"
-                      : burner.shielded
-                        ? "UNSHIELD TO MAIN WALLET"
-                        : "SWEEP TO MAIN WALLET"}
+                    ? burner.compressed ? "DECOMPRESSING..." : "PURGING..."
+                    : burner.compressed ? "DECOMPRESS TO WALLET" : "SWEEP TO MAIN WALLET"}
                 </button>
               )}
             </div>
-          </div>
-        </DropCard>
-      )}
+
+            <button
+              type="button"
+              onClick={() => { setBurnerState(null); setBurner(null); setClaimCode(""); setPassword(""); setStatus(null); setError(null); }}
+              className="mt-2 w-full border-none bg-transparent py-2 font-mono text-[9px] tracking-[0.15em] text-[rgba(224,224,224,0.2)] transition-colors hover:text-[rgba(224,224,224,0.4)]"
+            >
+              CLEAR
+            </button>
+          </>
+        )}
+      </main>
     </div>
   );
 }
 
 export default function ClaimDropPage() {
   return (
-    <Suspense fallback={<div className="mx-auto max-w-4xl px-6 py-16 text-sm text-[rgba(224,224,224,0.7)]">Loading claim flow…</div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center font-mono text-[10px] tracking-[0.3em] text-[rgba(224,224,224,0.3)]">LOADING...</div>}>
       <ClaimDropContent />
     </Suspense>
   );
 }
-
-
-

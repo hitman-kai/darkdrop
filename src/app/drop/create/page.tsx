@@ -1,21 +1,14 @@
 "use client";
-
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
 import { createAssociatedTokenAccountInstruction, createTransferInstruction, getAssociatedTokenAddress } from "@solana/spl-token";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-
-import { DropCard } from "@/components/DropCard";
-import { ConfidentialPreviewCard } from "@/components/ConfidentialPreviewCard";
-import { QRDisplay } from "@/components/QRDisplay";
 import { WalletConnectButton } from "@/components/WalletConnectButton";
+import { QRDisplay } from "@/components/QRDisplay";
 import { amountToUnits } from "@/lib/amount";
 import { generateDrop, type DropPayload } from "@/lib/drop";
 import { createShieldSendFn } from "@/lib/shield-relay";
-import { generateConfidentialProof } from "@/lib/confidential/proofClient";
-import { getConfidentialSupport, planConfidentialTransfer } from "@/lib/confidential/transfers";
 import {
   ASSETS,
   AssetSymbol,
@@ -29,42 +22,27 @@ import {
 } from "@/lib/tokens";
 import { useHistoryStore } from "@/store/history";
 import { useSettingsStore } from "@/store/settings";
-import { usePrivacyStore } from "@/store/privacy";
 
 const USDC_FEE_BUFFER_LAMPORTS = Math.round(0.002 * LAMPORTS_PER_SOL);
-
-// Fixed denominations for privacy (prevents amount correlation attacks)
-const FIXED_DENOMINATIONS = {
-  sol: [
-    { value: "0.1", label: "0.1" },
-    { value: "0.5", label: "0.5" },
-    { value: "1", label: "1" },
-    { value: "10", label: "10" },
-  ],
-  usdc: [
-    { value: "1", label: "1" },
-    { value: "5", label: "5" },
-    { value: "10", label: "10" },
-    { value: "100", label: "100" },
-  ],
-};
-
 const CREATE_ASSET_LIST: AssetSymbol[] = ["sol", "usdc"];
-const MIN_BATCH_COUNT = 2;
-const MAX_BATCH_COUNT = 20;
 
-const explorerUrl = (signature: string) => {
-  const base = `https://solscan.io/tx/${signature}`;
-  return base;
-};
+const explorerUrl = (sig: string) => `https://solscan.io/tx/${sig}`;
 
-type DropResult = DropPayload & {
-  signature: string;
-};
+type DropResult = DropPayload & { signature: string };
 
-type BatchProgress = {
-  done: number;
-  total: number;
+const CODE_PREVIEW = (cluster: ClusterType, asset: AssetSymbol, compressed: boolean = false) =>
+  compressed
+    ? `darkdrop:v2:${cluster}:${asset}:compressed:raw:...`
+    : `darkdrop:v2:${cluster}:${asset}:raw:...`;
+
+const normalizeTxError = (error: unknown): string => {
+  if (error instanceof Error) {
+    const lower = error.message.toLowerCase();
+    if (lower.includes("invalid public key input")) return "RPC rejected the transaction. Switch your wallet to Solana Mainnet Beta.";
+    if (lower.includes("blockhash not found")) return "Stale blockhash. Reconnect your wallet and try again.";
+    return error.message;
+  }
+  return "Failed to create drop.";
 };
 
 export default function CreateDropPage() {
@@ -74,161 +52,39 @@ export default function CreateDropPage() {
   const cluster = useSettingsStore((state) => state.cluster);
   const preferredAsset = useSettingsStore((state) => state.preferredAsset);
   const setPreferredAsset = useSettingsStore((state) => state.setPreferredAsset);
-  const privateMode = usePrivacyStore((state) => state.privateMode);
-  const setPrivateMode = usePrivacyStore((state) => state.setPrivateMode);
-  const privacyPending = usePrivacyStore((state) => state.pending);
-  const setPrivacyPending = usePrivacyStore((state) => state.setPending);
 
-  const initialAsset =
-    preferredAsset && preferredAsset in FIXED_DENOMINATIONS ? preferredAsset : DEFAULT_ASSET;
-  const [asset, setAsset] = useState<AssetSymbol>(initialAsset);
-  const [amount, setAmount] = useState(FIXED_DENOMINATIONS[initialAsset][0].value);
+  const [asset, setAsset] = useState<AssetSymbol>(preferredAsset ?? DEFAULT_ASSET);
+  const [amount, setAmount] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [ultraPrivateMode, setUltraPrivateMode] = useState(false);
   const [shielding, setShielding] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<DropResult | DropResult[] | null>(null);
-  const [batchMode, setBatchMode] = useState(false);
-  const [batchCount, setBatchCount] = useState(3);
-  const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
-  const [confidentialNotes, setConfidentialNotes] = useState<string[]>([]);
-  const [proofData, setProofData] = useState<{
-    equalityProof: string;
-    validityProof: string;
-    rangeProof: string;
-    newSourceBalance: string;
-    senderElGamalKeypair: string;
-  } | null>(null);
-
-  useEffect(() => {
-    const nextAsset =
-      preferredAsset && preferredAsset in FIXED_DENOMINATIONS ? preferredAsset : DEFAULT_ASSET;
-    setAsset(nextAsset);
-    setAmount(FIXED_DENOMINATIONS[nextAsset][0].value);
-  }, [preferredAsset]);
+  const [result, setResult] = useState<DropResult | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const decimals = getAssetDecimals(asset);
   const symbol = getAssetSymbol(asset);
-  const confidentialSupport = useMemo(() => getConfidentialSupport(asset), [asset]);
-  const confidentialSupported = confidentialSupport.supported;
-  const confidentialSupportReason = confidentialSupport.reason;
-  const mintAddress = useMemo(() => getAssetMint(asset, cluster), [asset, cluster]);
   const useZkElgamal = process.env.NEXT_PUBLIC_USE_ZK_ELGAMAL === "true";
 
   const handleAssetChange = (next: AssetSymbol) => {
     setAsset(next);
     setPreferredAsset(next);
-    // Reset to first fixed denomination for core asset
-    setAmount(FIXED_DENOMINATIONS[next][0].value);
+    setAmount("");
   };
-
-  useEffect(() => {
-    let cancelled = false;
-    
-    // Skip Token-2022 proof generation if using Light Protocol
-    if (ultraPrivateMode && !useZkElgamal) {
-      setConfidentialNotes(["Using Light Protocol shielded drops (zk-compression)"]);
-      setPrivacyPending(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-    
-    if (!privateMode) {
-      setConfidentialNotes(
-        confidentialSupported ? [] : confidentialSupportReason ? [confidentialSupportReason] : []
-      );
-      setPrivacyPending(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-    if (!confidentialSupported) {
-      setConfidentialNotes(confidentialSupportReason ? [confidentialSupportReason] : []);
-      setPrivacyPending(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-    if (!mintAddress) {
-      setConfidentialNotes(["Missing USDC mint configuration."]);
-      setPrivacyPending(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-    const run = async () => {
-      setPrivacyPending(true);
-      try {
-        let units = 0n;
-        try {
-          units = amountToUnits(amount || "0", decimals);
-        } catch {
-          units = 0n;
-        }
-
-        // For preview, use a large balance (actual balance fetching requires connection)
-        // In production, would fetch actual token balance from blockchain
-        const previewBalance = units * 10n || 1000000n;
-
-        const proof = await generateConfidentialProof({
-          kind: "token2022-confidential-transfer",
-          asset,
-          amount: units,
-          decimals,
-          mint: mintAddress,
-          owner: publicKey?.toBase58(),
-          destination: publicKey?.toBase58(),
-          cluster,
-          sender_balance: previewBalance.toString(),
-        });
-        if (!cancelled) {
-          setConfidentialNotes(proof.notes);
-          setPrivacyPending(false);
-          
-          // Save proof data for use in transaction
-          if (proof.proof?.metadata) {
-            const meta = proof.proof.metadata;
-            if (meta.equality_proof && meta.validity_proof && meta.range_proof) {
-              setProofData({
-                equalityProof: String(meta.equality_proof),
-                validityProof: String(meta.validity_proof),
-                rangeProof: String(meta.range_proof),
-                newSourceBalance: String(meta.new_source_balance),
-                senderElGamalKeypair: String(meta.sender_elgamal_keypair),
-              });
-            }
-          }
-        }
-      } catch (proofError) {
-        if (!cancelled) {
-          setConfidentialNotes([
-            proofError instanceof Error ? proofError.message : "Unable to build proof preview.",
-          ]);
-          setPrivacyPending(false);
-        }
-      }
-    };
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [asset, amount, decimals, privateMode, ultraPrivateMode, useZkElgamal, mintAddress, publicKey, cluster, confidentialSupported, confidentialSupportReason]);
 
   const copyToClipboard = async (value: string) => {
     if (typeof navigator === "undefined" || !navigator.clipboard) return;
     try {
       await navigator.clipboard.writeText(value);
-    } catch {
-      // Ignore clipboard errors silently
-    }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
   };
 
   const createSingleDrop = async (rawAmount: bigint, dropPassword?: string): Promise<DropResult> => {
-    if (!publicKey || !sendTransaction) {
-      throw new Error("Wallet connection required.");
-    }
+    if (!publicKey || !sendTransaction) throw new Error("Wallet connection required.");
 
     if (ultraPrivateMode && !useZkElgamal) {
       setShielding(true);
@@ -241,42 +97,22 @@ export default function CreateDropPage() {
           : async (tx: Transaction): Promise<string> => {
               return await sendTransaction(tx, connection, { skipPreflight: false });
             };
-
         const drop = await generateDrop({
-          asset,
-          cluster,
-          password: dropPassword,
-          ultraPrivateMode: true,
-          connection,
-          payerPubkey: publicKey,
-          sendTransactionFn: sendTxFn,
-          amount: rawAmount,
+          asset, cluster, password: dropPassword,
+          ultraPrivateMode: true, connection,
+          payerPubkey: publicKey, sendTransactionFn: sendTxFn, amount: rawAmount,
         });
-
-        if (!drop.shielded) {
-          throw new Error("Shielded drop failed to initialize.");
-        }
-
-        return {
-          ...drop,
-          signature: drop.shieldSignature || "shielded",
-        };
+        if (!drop.shielded) throw new Error("Shielded drop failed to initialize.");
+        return { ...drop, signature: drop.shieldSignature || "shielded" };
       } catch (lightError) {
-        console.error("[DarkDrop] Compression failed:", lightError);
         const errorMsg = lightError instanceof Error ? lightError.message : "Unknown error";
-        throw new Error(`Compression failed: ${errorMsg}. Please check your USDC balance and try again.`);
+        throw new Error(`Compression failed: ${errorMsg}`);
       } finally {
         setShielding(false);
       }
     }
 
-    const drop = await generateDrop({
-      asset,
-      cluster,
-      password: dropPassword,
-      ultraPrivateMode: false,
-      amount: rawAmount,
-    });
+    const drop = await generateDrop({ asset, cluster, password: dropPassword, ultraPrivateMode: false, amount: rawAmount });
     const dropPubkey = new PublicKey(drop.address);
     let signature = "";
 
@@ -284,157 +120,52 @@ export default function CreateDropPage() {
       const lamports = Number(rawAmount);
       if (lamports <= 0) throw new Error("Amount too low.");
       const tx = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: dropPubkey,
-          lamports,
-        })
+        SystemProgram.transfer({ fromPubkey: publicKey, toPubkey: dropPubkey, lamports })
       );
       tx.feePayer = publicKey;
       signature = await sendTransaction(tx, connection, { skipPreflight: false });
     } else {
       const mintAddress = getAssetMint(asset, cluster);
-      if (!mintAddress) {
-        throw new Error("Token mint address not configured.");
-      }
+      if (!mintAddress) throw new Error("Token mint address not configured.");
       const tokenProgramId = getAssetProgramId(asset);
-      if (!tokenProgramId) {
-        throw new Error(`Token program ID not configured for ${symbol}`);
-      }
-
+      if (!tokenProgramId) throw new Error(`Token program ID not configured for ${symbol}`);
       const mint = new PublicKey(mintAddress);
       const fromAta = await getAssociatedTokenAddress(mint, publicKey, false, tokenProgramId);
       const fromInfo = await connection.getAccountInfo(fromAta);
-      if (!fromInfo) {
-        throw new Error(
-          `No ${symbol} balance found. Mint: ${mintAddress}, ATA: ${fromAta.toBase58()}.`
-        );
-      }
-
-      try {
-        const balance = await connection.getTokenAccountBalance(fromAta);
-        if (!balance.value || balance.value.uiAmount === 0) {
-          throw new Error(`Your ${symbol} account exists but has zero balance.`);
-        }
-      } catch (balanceError) {
-        if (balanceError instanceof Error && balanceError.message.includes("zero balance")) {
-          throw balanceError;
-        }
-      }
+      if (!fromInfo) throw new Error(`No ${symbol} balance found.`);
       const toAta = await getAssociatedTokenAddress(mint, dropPubkey, true, tokenProgramId);
       const toInfo = await connection.getAccountInfo(toAta);
       const instructions = [];
-      if (!toInfo) {
-        instructions.push(createAssociatedTokenAccountInstruction(publicKey, toAta, dropPubkey, mint, tokenProgramId));
-      }
-
-      if (privateMode && asset === "usdc" && confidentialSupported && proofData && useZkElgamal) {
-        const ctPlan = await planConfidentialTransfer({
-          connection,
-          asset,
-          owner: publicKey,
-          destination: dropPubkey,
-          amount: rawAmount,
-          proofData,
-        });
-        if (ctPlan.instructions.length === 0) {
-          throw new Error(
-            "Failed to build CT instructions. " +
-              (ctPlan.notes.length ? ctPlan.notes[0] : "Check console for details.")
-          );
-        }
-        instructions.push(...ctPlan.instructions);
-      } else if (privateMode && asset === "usdc" && confidentialSupported && !proofData && useZkElgamal) {
-        throw new Error(
-          "Private Mode enabled but proofs not ready. Wait for proof generation to complete."
-        );
-      } else {
-        instructions.push(
-          createTransferInstruction(fromAta, toAta, publicKey, Number(rawAmount), [], tokenProgramId)
-        );
-      }
-
-      instructions.push(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: dropPubkey,
-          lamports: USDC_FEE_BUFFER_LAMPORTS,
-        })
-      );
+      if (!toInfo) instructions.push(createAssociatedTokenAccountInstruction(publicKey, toAta, dropPubkey, mint, tokenProgramId));
+      instructions.push(createTransferInstruction(fromAta, toAta, publicKey, Number(rawAmount), [], tokenProgramId));
+      instructions.push(SystemProgram.transfer({ fromPubkey: publicKey, toPubkey: dropPubkey, lamports: USDC_FEE_BUFFER_LAMPORTS }));
       const tx = new Transaction().add(...instructions);
       tx.feePayer = publicKey;
       signature = await sendTransaction(tx, connection, { skipPreflight: false });
     }
 
     await connection.confirmTransaction(signature, "confirmed");
-
-    return {
-      ...drop,
-      signature,
-    };
+    return { ...drop, signature };
   };
 
   const handleCreate = async () => {
-    if (!connected || !publicKey) {
-      setError("Connect a Solana wallet first.");
-      return;
-    }
-
+    if (!connected || !publicKey) { setError("Connect a Solana wallet first."); return; }
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) { setError("Enter a valid amount."); return; }
     setProcessing(true);
     setError(null);
     setResult(null);
-    setBatchProgress(null);
-
     try {
       const walletAccount = await connection.getAccountInfo(publicKey, "confirmed");
-      if (!walletAccount) {
-        throw new Error("Wallet not found on Solana Mainnet Beta. Switch your wallet network and ensure it holds mainnet SOL (and USDC if needed).");
-      }
-
+      if (!walletAccount) throw new Error("Wallet not found on Solana Mainnet Beta.");
       const rawAmount = amountToUnits(amount, decimals);
-      if (rawAmount <= 0n) {
-        throw new Error("Enter a valid amount.");
-      }
-
+      if (rawAmount <= 0n) throw new Error("Enter a valid amount.");
       const dropPassword = password.trim() ? password.trim() : undefined;
-
-      if (batchMode) {
-        const count = Math.max(MIN_BATCH_COUNT, Math.min(MAX_BATCH_COUNT, batchCount));
-        const results: DropResult[] = [];
-        setBatchProgress({ done: 0, total: count });
-
-        for (let i = 0; i < count; i += 1) {
-          const created = await createSingleDrop(rawAmount, dropPassword);
-          results.push(created);
-          addSentDrop({
-            signature: created.signature,
-            address: created.address,
-            amount,
-            asset,
-            claimCode: created.claimCode,
-            cluster,
-            createdAt: new Date().toISOString(),
-            status: "pending",
-          });
-          setBatchProgress({ done: i + 1, total: count });
-        }
-
-        setResult(results);
-        setBatchProgress(null);
-        return;
-      }
-
       const created = await createSingleDrop(rawAmount, dropPassword);
       setResult(created);
       addSentDrop({
-        signature: created.signature,
-        address: created.address,
-        amount,
-        asset,
-        claimCode: created.claimCode,
-        cluster,
-        createdAt: new Date().toISOString(),
-        status: "pending",
+        signature: created.signature, address: created.address,
+        amount, asset, claimCode: created.claimCode, cluster,
+        createdAt: new Date().toISOString(), status: "pending",
       });
     } catch (txError) {
       setError(normalizeTxError(txError));
@@ -443,306 +174,221 @@ export default function CreateDropPage() {
     }
   };
 
-  const reset = () => {
-    setResult(null);
-    setPassword("");
-    setError(null);
-    setBatchProgress(null);
-  };
-
-  const claimLabel = useMemo(
-    () => `CLAIM CODE • ${symbol} • ${CLUSTER_LABELS[cluster]}`,
-    [symbol, cluster]
-  );
-  const isBatchResult = Array.isArray(result);
+  const reset = () => { setResult(null); setPassword(""); setError(null); setAmount(""); };
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-10 px-6 py-16">
-      <div className="flex flex-col gap-4 text-sm text-[rgba(224,224,224,0.7)]">
-        <Link href="/" className="text-xs tracking-[0.4em] text-[var(--accent)]">
-          DARKDROP / CREATE
-        </Link>
-        <p className="text-2xl font-semibold tracking-[0.3em] text-white">Dead Drop Generator</p>
+    <div className="relative flex min-h-screen flex-col">
+      {/* NAV */}
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between border-b border-[rgba(0,255,65,0.12)] bg-[rgba(0,0,0,0.92)] px-8 backdrop-blur-md" style={{height:"52px"}}>
+        <span className="font-mono text-[13px] tracking-[0.22em] text-[var(--accent)]">DARKDROP</span>
+        <div className="flex items-center gap-1 border border-[rgba(0,255,65,0.15)] px-1 py-1">
+          <Link href="/" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">HOME</Link>
+          <Link href="/drop/create" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[var(--accent)]">CREATE</Link>
+          <Link href="/drop/claim" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">CLAIM</Link>
+        </div>
         <WalletConnectButton />
-      </div>
+      </nav>
 
-      <DropCard
-        title="TRANSFER"
-        subtitle="Specify amount and optional password. Supported assets: SOL, USDC."
-      >
-        <div className="flex flex-wrap gap-2 text-xs">
-          {CREATE_ASSET_LIST.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => handleAssetChange(key)}
-              className={`border px-3 py-2 tracking-[0.3em] ${
-                asset === key ? "border-[var(--accent)] text-[var(--accent)]" : "border-[rgba(0,255,65,0.2)]"
-              }`}
-            >
-              {ASSETS[key].symbol}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-col gap-2">
-          <span className="text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
-            AMOUNT · {symbol}
-          </span>
+      <main className="mx-auto w-full max-w-xl px-6 pb-20" style={{paddingTop:"80px"}}>
+        {!result ? (
           <>
-            <div className="flex gap-1.5">
-              {FIXED_DENOMINATIONS[asset].map((denom) => (
-                <button
-                  key={denom.value}
-                  type="button"
-                  onClick={() => setAmount(denom.value)}
-                  className={`border px-3 py-2 text-xs tracking-[0.15em] transition-all ${
-                    amount === denom.value
-                      ? "border-[var(--accent)] bg-[rgba(0,255,65,0.1)] text-[var(--accent)]"
-                      : "border-[rgba(0,255,65,0.2)] hover:border-[rgba(0,255,65,0.4)]"
-                  }`}
-                >
-                  {denom.label}
-                </button>
-              ))}
+            <div className="mb-8">
+              <p className="mb-2 font-mono text-[9px] tracking-[0.3em] text-[rgba(0,255,65,0.35)]">OUTPUT // 0X01</p>
+              <h1 className="font-mono text-[clamp(24px,4vw,36px)] font-light leading-[1.15] text-[var(--text)]">Create a<br />dead drop.</h1>
+              <p className="mt-3 text-xs leading-relaxed text-[rgba(224,224,224,0.45)]">Select asset, enter amount, optional password. Claim code generated client-side.</p>
             </div>
-            <p className="text-[10px] text-[rgba(224,224,224,0.35)]">
-              Fixed amounts for privacy · prevents tracking
-            </p>
-          </>
-        </div>
-        <label className="block text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
-          PASSWORD (OPTIONAL)
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="leave empty for raw key"
-            className="mt-2 w-full"
-          />
-        </label>
-        <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
-            <input
-              type="checkbox"
-              checked={batchMode}
-              onChange={(e) => setBatchMode(e.target.checked)}
-              className="h-4 w-4"
-            />
-            <span>BATCH MODE</span>
-          </label>
-          {batchMode && (
-            <div className="ml-6 space-y-2 text-xs text-[rgba(224,224,224,0.55)]">
-              <label className="block text-[10px] tracking-[0.3em] text-[rgba(224,224,224,0.6)]">
-                COUNT (2-20)
-                <input
-                  type="number"
-                  min={MIN_BATCH_COUNT}
-                  max={MAX_BATCH_COUNT}
-                  value={batchCount}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    if (Number.isNaN(next)) {
-                      setBatchCount(MIN_BATCH_COUNT);
-                      return;
-                    }
-                    setBatchCount(next);
-                  }}
-                  className="mt-2 w-full"
-                />
-              </label>
-              <p>Creates multiple drops with the same asset + amount.</p>
-              {ultraPrivateMode && (
-                <p>Ultra Private Mode runs one compression transaction per drop.</p>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="flex flex-col gap-2">
-          <label className="flex items-center gap-2 text-xs tracking-[0.4em] text-[rgba(224,224,224,0.6)]">
-            <input
-              type="checkbox"
-              checked={ultraPrivateMode}
-              onChange={(e) => {
-                setUltraPrivateMode(e.target.checked);
-                if (e.target.checked) {
-                  setPrivateMode(false); // Disable Token-2022 mode when Light is enabled
-                }
-              }}
-              className="h-4 w-4"
-            />
-            <span>
-              Ultra Private Mode
-            </span>
-          </label>
-          {ultraPrivateMode && (
-            <p className="text-xs text-[rgba(224,224,224,0.5)] ml-6">
-              Uses Light Protocol zk-compression for link obfuscation. Compressed tokens/SOL owned by random keypair.
-            </p>
-          )}
-        </div>
 
-        <div className="flex flex-wrap items-center gap-4 border border-[rgba(0,255,65,0.2)] p-4 text-xs">
-          <ShieldQuestion size={16} />
-          <p className="text-[rgba(224,224,224,0.7)]">
-            Password adds AES layer. Claim string becomes
-            <span className="text-[var(--accent)]"> {CODE_PREVIEW(cluster, asset, ultraPrivateMode)}</span>
-          </p>
-        </div>
-        {error && (
-          <p className="flex items-center gap-2 text-sm text-[var(--danger)]">
-            <ShieldAlert size={16} /> {error}
-          </p>
-        )}
-        <button type="button" onClick={handleCreate} disabled={processing || shielding} className="w-full justify-center">
-          {shielding
-            ? "SHIELDING..."
-            : processing
-              ? batchProgress
-                ? `CREATING ${batchProgress.done}/${batchProgress.total}`
-                : "EXECUTING..."
-              : batchMode
-                ? "CREATE BATCH DROPS"
-                : "CREATE DEAD DROP"}
-        </button>
-      </DropCard>
-
-      {result && (
-        <DropCard
-          title={isBatchResult ? "DELIVER · BATCH" : "DELIVER"}
-          subtitle={
-            isBatchResult
-              ? "Multiple drops generated. Save every claim code before leaving this page."
-              : "Funds parked on burner. Share the claim string only with the intended recipient."
-          }
-          action={
-            <button type="button" onClick={reset} className="text-[var(--accent)]">
-              RESET
-            </button>
-          }
-        >
-          {isBatchResult ? (
-            <div className="flex flex-col gap-4">
-              <p className="text-xs text-[rgba(224,224,224,0.7)]">
-                Generated {(result as DropResult[]).length} drops. Keep the claim codes safe.
-              </p>
-              <div className="space-y-3">
-                {(result as DropResult[]).map((item, index) => (
-                  <div key={`${item.address}-${index}`} className="border border-[rgba(0,255,65,0.2)] p-4">
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-[rgba(224,224,224,0.7)]">
-                      <ShieldCheck size={16} className="text-[var(--accent)]" />
-                      <p>
-                        Drop {index + 1} · {symbol} · {CLUSTER_LABELS[item.cluster]}
-                      </p>
-                    </div>
-                    <p className="mt-2 text-xs text-[rgba(224,224,224,0.65)]">
-                      Address: <span className="text-[var(--accent)]">{item.address}</span>
-                    </p>
-                    {item.signature !== "shielded" && (
-                      <p className="mt-1 text-xs text-[rgba(224,224,224,0.7)]">
-                        Transfer signature:{" "}
-                        <a
-                          href={explorerUrl(item.signature)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[var(--accent)] underline"
-                        >
-                          {item.signature.slice(0, 12)}...
-                        </a>
-                      </p>
-                    )}
-                    <pre className="mt-3 max-h-24 overflow-y-auto bg-black/60 p-3 text-xs">
-                      {item.claimCode}
-                    </pre>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                      <button type="button" onClick={() => copyToClipboard(item.claimCode)}>
-                        COPY CLAIM CODE
-                      </button>
-                      <Link
-                        href={`/drop/claim?code=${encodeURIComponent(item.claimCode)}`}
-                        className="border border-[rgba(255,0,68,0.6)] bg-[rgba(255,0,68,0.08)] px-3 py-2 text-[var(--danger)]"
-                      >
-                        CLAW BACK
-                      </Link>
-                    </div>
-                  </div>
+            {/* ASSET */}
+            <div className="mb-3 border border-[rgba(0,255,65,0.1)] bg-[#050505]">
+              <div className="border-b border-[rgba(0,255,65,0.1)] px-5 py-3">
+                <span className="font-mono text-[9px] tracking-[0.28em] text-[rgba(224,224,224,0.2)]">ASSET</span>
+              </div>
+              <div className="flex p-4 gap-2">
+                {CREATE_ASSET_LIST.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handleAssetChange(key)}
+                    className={`flex-1 py-2.5 font-mono text-[10px] tracking-[0.15em] transition-all ${
+                      asset === key
+                        ? "border-[var(--accent)] bg-[rgba(0,255,65,0.08)] text-[var(--accent)]"
+                        : "border-[rgba(0,255,65,0.15)] text-[rgba(224,224,224,0.4)] hover:border-[rgba(0,255,65,0.3)]"
+                    }`}
+                  >
+                    {ASSETS[key].symbol}
+                  </button>
                 ))}
               </div>
-              <div className="flex flex-wrap gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() =>
-                    copyToClipboard((result as DropResult[]).map((item) => item.claimCode).join("\n"))
-                  }
-                >
-                  COPY ALL CODES
-                </button>
+            </div>
+
+            {/* AMOUNT */}
+            <div className="mb-3 border border-[rgba(0,255,65,0.1)] bg-[#050505]">
+              <div className="border-b border-[rgba(0,255,65,0.1)] px-5 py-3 flex justify-between items-center">
+                <span className="font-mono text-[9px] tracking-[0.28em] text-[rgba(224,224,224,0.2)]">AMOUNT</span>
+                <span className="font-mono text-[9px] tracking-[0.15em] text-[rgba(0,255,65,0.4)]">{symbol}</span>
+              </div>
+              <div className="p-4">
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder={asset === "sol" ? "e.g. 0.05" : "e.g. 5"}
+                  min="0"
+                  step={asset === "sol" ? "0.001" : "0.01"}
+                  className="w-full border border-[rgba(0,255,65,0.2)] bg-[#020202] px-4 py-3 font-mono text-[18px] text-[var(--text)] placeholder-[rgba(224,224,224,0.15)] focus:border-[var(--accent)] focus:outline-none"
+                />
               </div>
             </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center gap-3 text-xs text-[rgba(224,224,224,0.7)]">
-                <ShieldCheck size={16} className="text-[var(--accent)]" />
-                <p>
-                  {(result as DropResult).shielded ? (
-                    <>Shielded Drop · {symbol} · {CLUSTER_LABELS[(result as DropResult).cluster]}</>
-                  ) : (
-                    <>Drop address: {(result as DropResult).address} · {symbol} · {CLUSTER_LABELS[(result as DropResult).cluster]}</>
-                  )}
-                </p>
+
+            {/* MODE */}
+            <div className="mb-3 border border-[rgba(0,255,65,0.1)] bg-[#050505]">
+              <div className="border-b border-[rgba(0,255,65,0.1)] px-5 py-3">
+                <span className="font-mono text-[9px] tracking-[0.28em] text-[rgba(224,224,224,0.2)]">DELIVERY MODE</span>
               </div>
-              {(result as DropResult).signature !== "shielded" && (
-                <div className="flex flex-wrap items-center gap-3 text-xs text-[rgba(224,224,224,0.7)]">
-                  <ArrowLeftRight size={16} />
-                  <p>
-                    Transfer signature:{" "}
-                    <a
-                      href={explorerUrl((result as DropResult).signature)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[var(--accent)] underline"
+              <div className="flex flex-col divide-y divide-[rgba(0,255,65,0.06)]">
+                {[
+                  { id: "raw", name: "Raw Transfer", desc: "Burner keypair. No password required.", tag: "STANDARD" },
+                  { id: "aes", name: "Encrypted", desc: "AES-256-GCM + PBKDF2. Receiver needs the password.", tag: "SECURE" },
+                  { id: "zk", name: "Ultra Private", desc: "ZK compression via Light Protocol. On-chain link severed.", tag: "PRIVATE" },
+                ].map((mode) => {
+                  const isZk = mode.id === "zk";
+                  const isAes = mode.id === "aes";
+                  const selected = isZk ? ultraPrivateMode : (isAes ? (!ultraPrivateMode && password.length > 0) : (!ultraPrivateMode));
+                  return (
+                    <div
+                      key={mode.id}
+                      onClick={() => {
+                        if (isZk) setUltraPrivateMode(true);
+                        else setUltraPrivateMode(false);
+                      }}
+                      className={`flex cursor-pointer items-center gap-4 px-5 py-4 transition-colors ${
+                        isZk && ultraPrivateMode ? "bg-[rgba(0,255,65,0.04)]" : "hover:bg-[#080808]"
+                      }`}
                     >
-                      {(result as DropResult).signature.slice(0, 12)}...
-                    </a>
-                  </p>
-                </div>
-              )}
-              {(result as DropResult).shielded && (
-                <div className="flex flex-wrap items-center gap-3 text-xs text-[rgba(224,224,224,0.7)]">
-                  <ShieldCheck size={16} className="text-[var(--accent)]" />
-                  <p>Shielded Drop · Amounts and links hidden on-chain via zk-compression</p>
-                </div>
-              )}
-              <QRDisplay value={(result as DropResult).claimCode} label={claimLabel} />
-              <Link
-                href={`/drop/claim?code=${encodeURIComponent((result as DropResult).claimCode)}`}
-                className="border border-[rgba(255,0,68,0.6)] bg-[rgba(255,0,68,0.08)] px-4 py-2 text-center text-xs tracking-[0.3em] text-[var(--danger)]"
-              >
-                CLAW BACK
-              </Link>
+                      <div className={`h-3.5 w-3.5 shrink-0 rounded-full border transition-all ${
+                        (isZk && ultraPrivateMode) || (!isZk && !ultraPrivateMode && mode.id === "raw")
+                          ? "border-[var(--accent)] bg-[var(--accent)] shadow-[0_0_6px_rgba(0,255,65,0.5)]"
+                          : "border-[rgba(224,224,224,0.15)]"
+                      }`} />
+                      <div className="flex-1">
+                        <p className="text-[13px] font-medium text-[var(--text)]">{mode.name}</p>
+                        <p className="text-[11px] text-[rgba(224,224,224,0.4)]">{mode.desc}</p>
+                      </div>
+                      <span className="font-mono text-[8px] tracking-[0.14em] text-[rgba(224,224,224,0.2)] border border-[rgba(0,255,65,0.1)] px-2 py-1">{mode.tag}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          )}
-        </DropCard>
-      )}
+
+            {/* PASSWORD */}
+            <div className="mb-3 border border-[rgba(0,255,65,0.1)] bg-[#050505]">
+              <div className="border-b border-[rgba(0,255,65,0.1)] px-5 py-3">
+                <span className="font-mono text-[9px] tracking-[0.28em] text-[rgba(224,224,224,0.2)]">PASSWORD <span className="text-[rgba(224,224,224,0.15)]">— OPTIONAL</span></span>
+              </div>
+              <div className="p-4">
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Leave empty for raw key..."
+                    className="w-full border border-[rgba(0,255,65,0.2)] bg-[#020202] px-4 py-3 pr-16 font-mono text-sm text-[var(--text)] placeholder-[rgba(224,224,224,0.15)] focus:border-[var(--accent)] focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 border-none bg-transparent px-2 py-1 font-mono text-[9px] tracking-[0.1em] text-[rgba(224,224,224,0.3)] hover:text-[rgba(224,224,224,0.6)]"
+                  >
+                    {showPassword ? "HIDE" : "SHOW"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* CODE PREVIEW */}
+            <div className="mb-5 border border-[rgba(0,255,65,0.08)] px-5 py-3">
+              <p className="font-mono text-[9px] tracking-[0.2em] text-[rgba(224,224,224,0.2)]">CODE FORMAT</p>
+              <p className="mt-1 font-mono text-[10px] text-[rgba(0,255,65,0.4)] break-all">{CODE_PREVIEW(cluster, asset, ultraPrivateMode)}</p>
+            </div>
+
+            {error && (
+              <div className="mb-5 border border-[rgba(255,0,68,0.2)] bg-[rgba(255,0,68,0.04)] px-5 py-3">
+                <p className="text-xs text-[var(--danger)]">{error}</p>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={processing || shielding}
+              className="w-full border-[var(--accent)] bg-[var(--accent)] py-4 font-mono text-[10px] font-medium tracking-[0.2em] text-black transition-all hover:bg-[#33ff66] hover:shadow-[0_0_24px_rgba(0,255,65,0.2)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {shielding ? "SHIELDING..." : processing ? "EXECUTING..." : "CREATE DEAD DROP"}
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="mb-8">
+              <p className="mb-2 font-mono text-[9px] tracking-[0.3em] text-[rgba(0,255,65,0.35)]">OUTPUT // 0X01</p>
+              <h1 className="font-mono text-[clamp(24px,4vw,36px)] font-light leading-[1.15] text-[var(--text)]">Drop ready.</h1>
+              <p className="mt-3 text-xs leading-relaxed text-[rgba(224,224,224,0.45)]">Deliver the claim string to the recipient off-chain. Do not share publicly.</p>
+            </div>
+
+            <div className="mb-3 border border-[rgba(0,255,65,0.2)] bg-[#050505]">
+              <div className="border-b border-[rgba(0,255,65,0.15)] px-5 py-3 flex items-center gap-3">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)] shadow-[0_0_6px_var(--accent)]" />
+                <span className="font-mono text-[9px] tracking-[0.28em] text-[rgba(0,255,65,0.6)]">TRANSACTION CONFIRMED</span>
+              </div>
+              <div className="p-5">
+                <p className="mb-3 font-mono text-[9px] tracking-[0.25em] text-[rgba(224,224,224,0.2)]">CLAIM CODE</p>
+                <div className="border border-[rgba(0,255,65,0.15)] bg-[#020202] p-4">
+                  <p className="break-all font-mono text-[11px] leading-relaxed text-[var(--accent)]">{result.claimCode}</p>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(result.claimCode)}
+                    className="flex-1 border-[rgba(0,255,65,0.3)] py-2.5 font-mono text-[9px] tracking-[0.15em] text-[var(--accent)]"
+                  >
+                    {copied ? "COPIED" : "COPY CODE"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={reset}
+                    className="flex-1 border-[rgba(224,224,224,0.1)] py-2.5 font-mono text-[9px] tracking-[0.15em] text-[rgba(224,224,224,0.4)]"
+                  >
+                    NEW DROP
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {result.signature !== "shielded" && (
+              <div className="mb-3 border border-[rgba(0,255,65,0.1)] bg-[#050505] px-5 py-3">
+                <p className="font-mono text-[9px] tracking-[0.2em] text-[rgba(224,224,224,0.2)]">TX SIGNATURE</p>
+                <a href={explorerUrl(result.signature)} target="_blank" rel="noreferrer" className="mt-1 block font-mono text-[10px] text-[rgba(0,255,65,0.5)] underline decoration-dotted underline-offset-2 hover:text-[var(--accent)]">
+                  {result.signature.slice(0, 24)}...
+                </a>
+              </div>
+            )}
+
+            <QRDisplay value={result.claimCode} label={`CLAIM CODE · ${symbol} · ${CLUSTER_LABELS[cluster]}`} />
+
+            <div className="mt-3 border border-[rgba(255,0,68,0.1)] bg-[rgba(255,0,68,0.03)] px-5 py-4">
+              <p className="mb-1 font-mono text-[9px] tracking-[0.25em] text-[rgba(255,0,68,0.6)]">SECURITY NOTICE</p>
+              <p className="text-[11px] leading-relaxed text-[rgba(224,224,224,0.4)]">This code grants direct access to the funds. Share only with the intended recipient. DarkDrop cannot recover lost codes.</p>
+            </div>
+
+            <Link
+              href={`/drop/claim?code=${encodeURIComponent(result.claimCode)}`}
+              className="mt-3 block border border-[rgba(255,0,68,0.3)] bg-[rgba(255,0,68,0.06)] px-5 py-3 text-center font-mono text-[10px] tracking-[0.2em] text-[var(--danger)] transition-colors hover:bg-[rgba(255,0,68,0.1)]"
+            >
+              CLAW BACK
+            </Link>
+          </>
+        )}
+      </main>
     </div>
   );
 }
-
-const CODE_PREVIEW = (cluster: ClusterType, asset: AssetSymbol, compressed: boolean = false) =>
-  compressed
-    ? `darkdrop:v2:${cluster}:${asset}:compressed:raw:...`
-    : `darkdrop:v2:${cluster}:${asset}:raw:...`;
-
-const normalizeTxError = (error: unknown): string => {
-  if (error instanceof Error) {
-    const message = error.message;
-    const lower = message.toLowerCase();
-    if (lower.includes("invalid public key input")) {
-      return "RPC rejected the transaction. Switch your wallet to Solana Mainnet Beta and ensure it holds mainnet SOL/USDC.";
-    }
-    if (lower.includes("blockhash not found")) {
-      return "Stale blockhash. Reconnect your wallet on Solana Mainnet Beta and try again.";
-    }
-    return message;
-  }
-  return "Failed to create drop.";
-};
