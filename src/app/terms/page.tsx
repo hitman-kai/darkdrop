@@ -1,119 +1,85 @@
+"use client";
 import Link from "next/link";
-import type { ReactNode } from "react";
 
-export const metadata = {
-  title: "DarkDrop Terms of Service",
-  description: "Terms of Service for DarkDrop.",
-};
-
-const content = `# Terms of Service
-
-**Effective date:** [insert date]  
-**Applies to:** https://darkdrop.app
-
-By using DarkDrop, you agree to these terms.
-
-## Non-Custodial Service
-DarkDrop is non-custodial. We never control your funds or private keys. You are fully responsible for your assets and transactions.
-
-## Claim Code Responsibility
-Claim codes are like cash. Anyone with the code can claim the funds. You are responsible for generating, storing, and sharing codes securely.
-
-## No Guarantees of Privacy or Recovery
-DarkDrop does not guarantee anonymity or fund recovery. On-chain transactions may be visible to network participants. Lost or exposed claim codes cannot be recovered.
-
-## "As Is" Software
-The protocol and interface are provided "as is" without warranties. Use at your own risk.
-
-## Experimental Modules
-Some modules (for example DarkPool) may be experimental or separate. Use them with caution and only when you understand the risks.
-
-## Changes to the Protocol
-We may modify or update the interface, relayer behavior, or protocol logic at any time.
-
-## Limitation of Liability
-To the maximum extent permitted by law, DarkDrop contributors are not liable for any loss, damages, or claims arising from your use of the software.
-
-## Contact
-support@darkdrop.app
-`;
-
-function renderInline(text: string) {
-  const parts: Array<string | ReactNode> = [];
-  const regex = /\*\*(.+?)\*\*/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
-    }
-    parts.push(
-      <strong key={`${match.index}-${match[1]}`} className="text-white">
-        {match[1]}
-      </strong>
-    );
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
-  }
-
-  return parts;
-}
-
-function renderMarkdown(text: string) {
-  return text.split("\n").map((line, idx) => {
-    if (line.startsWith("# ")) {
-      return (
-        <h1 key={idx} className="text-2xl font-semibold tracking-[0.2em] text-white">
-          {renderInline(line.replace("# ", ""))}
-        </h1>
-      );
-    }
-    if (line.startsWith("## ")) {
-      return (
-        <h2 key={idx} className="text-sm tracking-[0.4em] text-[var(--accent)]">
-          {renderInline(line.replace("## ", ""))}
-        </h2>
-      );
-    }
-    if (line.startsWith("- ")) {
-      return (
-        <li key={idx} className="ml-6 list-disc text-sm text-[rgba(224,224,224,0.85)]">
-          {renderInline(line.replace("- ", ""))}
-        </li>
-      );
-    }
-    if (line.trim() === "") {
-      return <div key={idx} className="h-3" />;
-    }
-    return (
-      <p key={idx} className="text-sm text-[rgba(224,224,224,0.85)]">
-        {renderInline(line)}
-      </p>
-    );
-  });
-}
+const sections = [
+  {
+    id: "01",
+    title: "Protocol, not a service",
+    content: `DarkDrop is a non-custodial protocol. It does not hold, control, or have access to your funds at any time. When you create a drop, funds move directly from your wallet to a burner keypair you generated client-side. DarkDrop has no ability to freeze, reverse, or recover any transaction.`,
+  },
+  {
+    id: "02",
+    title: "You are responsible for your claim codes",
+    content: `The claim code is the sole means of accessing funds in a drop. Anyone who possesses the claim code can sweep the funds. DarkDrop has no server-side record of claim codes and cannot recover them if lost.\n\nDo not share claim codes publicly. Do not lose them. DarkDrop accepts no liability for lost, stolen, or misdelivered claim codes.`,
+  },
+  {
+    id: "03",
+    title: "No warranties",
+    content: `DarkDrop is provided as-is without warranty of any kind. The protocol is experimental software. Smart contract interactions, RPC infrastructure, and third-party dependencies may fail. Use at your own risk.\n\nDarkDrop makes no guarantee of uptime, transaction success, or fund recovery in the event of software failure.`,
+  },
+  {
+    id: "04",
+    title: "Permitted use",
+    content: `You may use DarkDrop for any lawful purpose. You may not use DarkDrop to facilitate money laundering, sanctions evasion, ransomware payments, or any activity prohibited by applicable law in your jurisdiction.\n\nDarkDrop is a neutral protocol. It does not screen, monitor, or approve transactions. Compliance with local laws is entirely your responsibility.`,
+  },
+  {
+    id: "05",
+    title: "Relayer service",
+    content: `The DarkDrop relayer is an optional service that submits transactions on your behalf in exchange for a 1% fee. The relayer is operated on a best-effort basis. DarkDrop does not guarantee relayer availability, speed, or fee stability.\n\nRelayer transactions are broadcast to the public Solana network and are irreversible once confirmed.`,
+  },
+  {
+    id: "06",
+    title: "Limitation of liability",
+    content: `To the maximum extent permitted by law, DarkDrop and its contributors shall not be liable for any direct, indirect, incidental, or consequential damages arising from your use of the protocol, including but not limited to loss of funds, loss of data, or unauthorized access to claim codes.`,
+  },
+  {
+    id: "07",
+    title: "Changes to these terms",
+    content: `DarkDrop may update these terms at any time. Continued use of the protocol after changes constitutes acceptance of the revised terms. Material changes will be announced via @darkdrop_sol on X.`,
+  },
+  {
+    id: "08",
+    title: "Contact",
+    content: `Questions regarding these terms can be directed to @darkdrop_sol on X.`,
+  },
+];
 
 export default function TermsPage() {
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-16 text-[var(--text)]">
-      <header className="space-y-3 text-center">
-        <p className="text-xs tracking-[0.8em] text-[var(--accent)]">DARKDROP / TERMS</p>
-        <p className="text-sm text-[rgba(224,224,224,0.7)]">Simple, clear, and privacy-first.</p>
-      </header>
+    <div className="relative flex min-h-screen flex-col">
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between border-b border-[rgba(0,255,65,0.12)] bg-[rgba(0,0,0,0.92)] px-8 backdrop-blur-md" style={{height:"52px"}}>
+        <span className="font-mono text-[13px] tracking-[0.22em] text-[var(--accent)]">DARKDROP</span>
+        <div className="flex items-center gap-1 border border-[rgba(0,255,65,0.15)] px-1 py-1">
+          <Link href="/" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">HOME</Link>
+          <Link href="/drop/create" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">CREATE</Link>
+          <Link href="/drop/claim" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">CLAIM</Link>
+        </div>
+        <Link href="/drop/create" className="border border-[var(--accent)] px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[var(--accent)] transition-colors hover:bg-[rgba(0,255,65,0.08)]">CREATE DROP</Link>
+      </nav>
 
-      <section className="space-y-3 border border-[rgba(0,255,65,0.25)] bg-black/30 p-5">
-        {renderMarkdown(content)}
-      </section>
+      <main className="mx-auto w-full max-w-3xl px-6 pb-20" style={{paddingTop:"80px"}}>
+        <div className="mb-12">
+          <p className="mb-2 font-mono text-[9px] tracking-[0.3em] text-[rgba(0,255,65,0.35)]">OUTPUT // 0X07</p>
+          <h1 className="font-mono text-[clamp(24px,4vw,36px)] font-light leading-[1.15] text-[var(--text)]">Terms of service.</h1>
+          <p className="mt-3 text-xs leading-relaxed text-[rgba(224,224,224,0.45)]">Last updated March 2026. By using DarkDrop you agree to these terms.</p>
+        </div>
 
-      <footer className="text-center text-xs text-[rgba(224,224,224,0.6)]">
-        <Link href="/" className="text-[var(--accent)] underline">
-          Return to DarkDrop
-        </Link>
-      </footer>
+        <div className="flex flex-col gap-3">
+          {sections.map((section) => (
+            <div key={section.id} className="border border-[rgba(0,255,65,0.1)] bg-[#050505]">
+              <div className="border-b border-[rgba(0,255,65,0.08)] px-5 py-3 flex items-center gap-4">
+                <span className="font-mono text-[9px] tracking-[0.2em] text-[rgba(0,255,65,0.25)]">{section.id}</span>
+                <h2 className="font-mono text-[12px] tracking-[0.08em] text-[var(--text)]">{section.title}</h2>
+              </div>
+              <div className="px-5 py-4">
+                {section.content.split("\n\n").map((para, i) => (
+                  <p key={i} className="mb-3 text-[12px] leading-relaxed text-[rgba(224,224,224,0.5)] last:mb-0 whitespace-pre-line">{para}</p>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
     </div>
   );
 }

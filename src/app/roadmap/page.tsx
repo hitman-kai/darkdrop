@@ -1,142 +1,145 @@
-type TimelineEntry = {
-  title: string;
-  bullets: string[];
-  status: string;
-  statusColor?: string;
-};
+"use client";
+import Link from "next/link";
 
-const TIMELINE: TimelineEntry[] = [
+const items = [
   {
-    title: 'v1 — November 2025',
-    bullets: [
-      'Anonymous dead drops via burner keypairs',
-      'SOL + USDC support on mainnet',
-      'Optional AES-256 password protection',
-      'QR code + claim code generation',
-      'One-click sweep and burner purge',
-      'Local history (browser storage)',
-      'Full PWA — installable, offline-capable',
+    phase: "01",
+    status: "LIVE",
+    title: "Core Dead Drops",
+    items: [
+      "Burner keypair generation client-side",
+      "AES-256-GCM + PBKDF2 password encryption",
+      "v2 claim code format with versioning",
+      "Nullifier registry — prevents double-spend",
+      "QR code generation and scanner",
+      "Local history vault with encrypted export",
     ],
-    status: 'LIVE',
-    statusColor: 'var(--accent)',
   },
   {
-    title: 'v2 — January 2026',
-    bullets: [
-      'Ultra Private Mode via Light Protocol ZK compression',
-      'Compressed SOL/USDC in merkle trees with validity proofs',
-      'Fixed denominations (0.1, 0.5, 1, 10 SOL / $1, $5, $10, $100)',
-      'Relayer service for gasless claims',
-      'Nullifier system prevents double-spending',
-      'On-chain link between sender and receiver broken',
+    phase: "02",
+    status: "LIVE",
+    title: "ZK Compression Layer",
+    items: [
+      "Light Protocol zk-compression integration",
+      "Compressed SOL and USDC drops",
+      "Relayer-submitted claims — receiver wallet never on-chain",
+      "1% relayer fee model, no SOL required to claim",
+      "On-chain nullifier program support",
     ],
-    status: 'LIVE',
-    statusColor: 'var(--accent)',
   },
   {
-    title: 'v2.1 — January 2026',
-    bullets: [
-      'Batch drops (multi-recipient) with 2-20 drops per session',
-      'Clawback flow for unclaimed drops',
-      'Claim code storage in local history',
+    phase: "03",
+    status: "LIVE",
+    title: "Sender Privacy",
+    items: [
+      "Relayer-submitted shield transactions",
+      "Sender wallet hidden from on-chain compress tx",
+      "signTransaction intercept — sender signs only, relayer broadcasts",
+      "Fallback to direct mode if relayer unavailable",
     ],
-    status: 'LIVE',
-    statusColor: 'var(--accent)',
   },
   {
-    title: 'v3 — Q2 2026',
-    bullets: [
-      'DarkPool — shielded mixing pool for maximum privacy',
-      'Time-delayed claims (randomized 1-24hr wait)',
-      'Tor routing for RPC calls (hide IP from providers)',
-      'Telegram Mini App integration',
-      'Duress mode (decoy wallet on wrong password)',
+    phase: "04",
+    status: "NEXT",
+    title: "Split Claim Codes",
+    items: [
+      "Shamir's Secret Sharing — split code into N shares",
+      "Require M-of-N shares to reconstruct",
+      "Send shares over separate channels",
+      "Single channel compromise cannot steal funds",
+      "Pure cryptography — zero on-chain footprint",
     ],
-    status: 'IN PROGRESS',
-    statusColor: 'rgba(255, 200, 0, 0.9)',
   },
   {
-    title: 'v4 — 2026+',
-    bullets: [
-      'Cross-chain bridge integration',
-      'Hardware wallet signing support',
-      'Self-hosted relayer option',
-      'I2P hidden service mirror',
-      'Mobile native apps (iOS/Android)',
-      'SDK for third-party integrations',
+    phase: "05",
+    status: "NEXT",
+    title: "Stealth Address Registry",
+    items: [
+      "Receiver publishes scan key once",
+      "Sender derives stealth address without prior contact",
+      "No DM or address sharing required",
+      "Monero-style scanning model for Solana",
     ],
-    status: 'PLANNED',
-    statusColor: 'rgba(224, 224, 224, 0.5)',
   },
-] as const;
+  {
+    phase: "06",
+    status: "NEXT",
+    title: "Physical Dead Drops",
+    items: [
+      "Claim code embedded in printed QR",
+      "Full offline support — derivation client-side",
+      "Hand someone paper, they sweep from phone",
+      "No network required until sweep",
+    ],
+  },
+  {
+    phase: "07",
+    status: "RESEARCH",
+    title: "Commitment Scheme",
+    items: [
+      "On-chain merkle tree of commitment hashes",
+      "Deposit and withdrawal cryptographically unlinked",
+      "Tornado Cash model adapted for Solana",
+      "Requires custom program + audit",
+    ],
+  },
+];
+
+const statusColor: Record<string, string> = {
+  LIVE: "text-[var(--accent)] border-[rgba(0,255,65,0.3)]",
+  NEXT: "text-[rgba(224,224,224,0.5)] border-[rgba(224,224,224,0.15)]",
+  RESEARCH: "text-[rgba(224,224,224,0.3)] border-[rgba(224,224,224,0.08)]",
+};
 
 export default function RoadmapPage() {
   return (
-    <div className="mx-auto flex min-h-screen max-w-4xl flex-col bg-black px-6 py-16 text-white">
-      <div className="flex flex-col gap-4">
-        <p className="text-xs font-mono uppercase tracking-[0.6em] text-[var(--accent)]">
-          OUTPUT // 0X01
-        </p>
-        <p className="font-mono text-4xl uppercase tracking-[0.8em] text-[var(--accent)]">
-          DARKDROP ROADMAP
-        </p>
-      </div>
-
-      {/* Current Focus */}
-      <div className="mt-10 border border-[rgba(0,255,65,0.3)] bg-[rgba(0,255,65,0.05)] p-4">
-        <p className="font-mono text-xs uppercase tracking-[0.4em] text-[var(--accent)]">
-          CURRENT FOCUS: UTILITY RELEASES
-        </p>
-        <p className="mt-2 font-mono text-sm text-[rgba(224,224,224,0.7)]">
-          Shipping batch drops, clawback recovery, and stronger sender tooling while DarkPool continues in parallel.
-        </p>
-      </div>
-
-      <div className="mt-12 flex flex-col gap-12">
-        {TIMELINE.map((entry) => (
-          <div key={entry.title} className="relative border-l-2 border-[var(--accent)] pl-6">
-            <span className="absolute -left-[7px] top-2 block h-3 w-3 rounded-full bg-[var(--accent)]" aria-hidden />
-            <p className="font-mono text-xl uppercase tracking-[0.5em] text-white">{entry.title}</p>
-            <div className="mt-4 space-y-2 text-sm text-[rgba(224,224,224,0.85)]">
-              {entry.bullets.map((bullet) => (
-                <p key={bullet} className="font-mono text-[var(--muted-text,#d7fedd)]">
-                  {"•"} {bullet}
-                </p>
-              ))}
-            </div>
-            <p 
-              className="mt-6 font-mono text-xs uppercase tracking-[0.6em]"
-              style={{ color: entry.statusColor || 'var(--accent)' }}
-            >
-              {entry.status}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Privacy Stack */}
-      <div className="mt-16 border border-[rgba(0,255,65,0.2)] p-6">
-        <p className="font-mono text-xs uppercase tracking-[0.4em] text-[var(--accent)] mb-4">
-          PRIVACY STACK
-        </p>
-        <div className="grid gap-4 md:grid-cols-3 font-mono text-xs">
-          <div className="border border-[rgba(0,255,65,0.2)] p-3">
-            <p className="text-[var(--accent)] mb-2">LAYER 1</p>
-            <p className="text-[rgba(224,224,224,0.7)]">Transaction Privacy</p>
-            <p className="text-[rgba(224,224,224,0.5)] mt-1">ZK compression, fixed amounts, mixing pool</p>
-          </div>
-          <div className="border border-[rgba(0,255,65,0.2)] p-3">
-            <p className="text-[var(--accent)] mb-2">LAYER 2</p>
-            <p className="text-[rgba(224,224,224,0.7)]">Identity Privacy</p>
-            <p className="text-[rgba(224,224,224,0.5)] mt-1">No KYC, burner wallets, Tor routing</p>
-          </div>
-          <div className="border border-[rgba(0,255,65,0.2)] p-3">
-            <p className="text-[var(--accent)] mb-2">LAYER 3</p>
-            <p className="text-[rgba(224,224,224,0.7)]">Code Security</p>
-            <p className="text-[rgba(224,224,224,0.5)] mt-1">AES encryption, client-side keys</p>
-          </div>
+    <div className="relative flex min-h-screen flex-col">
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between border-b border-[rgba(0,255,65,0.12)] bg-[rgba(0,0,0,0.92)] px-8 backdrop-blur-md" style={{height:"52px"}}>
+        <span className="font-mono text-[13px] tracking-[0.22em] text-[var(--accent)]">DARKDROP</span>
+        <div className="flex items-center gap-1 border border-[rgba(0,255,65,0.15)] px-1 py-1">
+          <Link href="/" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">HOME</Link>
+          <Link href="/drop/create" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">CREATE</Link>
+          <Link href="/drop/claim" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">CLAIM</Link>
         </div>
-      </div>
+        <Link href="/drop/create" className="border border-[var(--accent)] px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[var(--accent)] transition-colors hover:bg-[rgba(0,255,65,0.08)]">CREATE DROP</Link>
+      </nav>
+
+      <main className="mx-auto w-full max-w-3xl px-6 pb-20" style={{paddingTop:"80px"}}>
+        <div className="mb-12">
+          <p className="mb-2 font-mono text-[9px] tracking-[0.3em] text-[rgba(0,255,65,0.35)]">OUTPUT // 0X04</p>
+          <h1 className="font-mono text-[clamp(24px,4vw,36px)] font-light leading-[1.15] text-[var(--text)]">Roadmap.</h1>
+          <p className="mt-3 text-xs leading-relaxed text-[rgba(224,224,224,0.45)]">Privacy primitives shipping in sequence. No promises on dates — only on direction.</p>
+        </div>
+
+        <div className="relative flex flex-col gap-0">
+          <div className="absolute left-[19px] top-0 bottom-0 w-px bg-gradient-to-b from-[rgba(0,255,65,0.3)] via-[rgba(0,255,65,0.1)] to-transparent" />
+          {items.map((phase, i) => (
+            <div key={phase.phase} className="relative flex gap-6 pb-10">
+              <div className={`relative z-10 mt-1 flex h-10 w-10 shrink-0 items-center justify-center border font-mono text-[9px] tracking-[0.1em] ${
+                phase.status === "LIVE"
+                  ? "border-[var(--accent)] bg-[rgba(0,255,65,0.08)] text-[var(--accent)]"
+                  : phase.status === "NEXT"
+                  ? "border-[rgba(224,224,224,0.15)] bg-[#050505] text-[rgba(224,224,224,0.3)]"
+                  : "border-[rgba(224,224,224,0.06)] bg-[#030303] text-[rgba(224,224,224,0.15)]"
+              }`}>{phase.phase}</div>
+              <div className="flex-1 border border-[rgba(0,255,65,0.08)] bg-[#050505] p-5">
+                <div className="mb-3 flex items-center gap-3">
+                  <h2 className="font-mono text-[13px] font-medium tracking-[0.08em] text-[var(--text)]">{phase.title}</h2>
+                  <span className={`border px-2 py-0.5 font-mono text-[8px] tracking-[0.18em] ${statusColor[phase.status]}`}>{phase.status}</span>
+                </div>
+                <ul className="space-y-1.5">
+                  {phase.items.map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-[11px] text-[rgba(224,224,224,0.45)]">
+                      <span className={`mt-1.5 h-1 w-1 shrink-0 rounded-full ${phase.status === "LIVE" ? "bg-[var(--accent)]" : "bg-[rgba(224,224,224,0.15)]"}`} />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
     </div>
   );
 }

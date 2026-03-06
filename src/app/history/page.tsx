@@ -1,28 +1,12 @@
 "use client";
-
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Clock3, ShieldCheck } from "lucide-react";
-
+import { useHistoryStore } from "@/store/history";
 import { CLUSTER_LABELS, getAssetSymbol } from "@/lib/tokens";
 import { buildEncryptedVault } from "@/lib/vault";
-import { useHistoryStore } from "@/store/history";
 
-const explorerUrl = (signature: string) => {
-  const base = `https://solscan.io/tx/${signature}`;
-  return base;
-};
-
+const explorerUrl = (sig: string) => `https://solscan.io/tx/${sig}`;
 const claimUrl = (code: string) => `/drop/claim?code=${encodeURIComponent(code)}`;
-
-const copyToClipboard = async (value: string) => {
-  if (typeof navigator === "undefined" || !navigator.clipboard) return;
-  try {
-    await navigator.clipboard.writeText(value);
-  } catch {
-    // ignore clipboard errors
-  }
-};
 
 export default function HistoryPage() {
   const sentDrops = useHistoryStore((state) => state.sentDrops);
@@ -33,134 +17,118 @@ export default function HistoryPage() {
   const [vaultPassphrase, setVaultPassphrase] = useState("");
   const [vaultStatus, setVaultStatus] = useState<string | null>(null);
   const [vaultBusy, setVaultBusy] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [tab, setTab] = useState<"sent" | "claimed">("sent");
+
+  const copy = async (val: string, key: string) => {
+    try { await navigator.clipboard.writeText(val); setCopied(key); setTimeout(() => setCopied(null), 2000); } catch {}
+  };
 
   const handleRecover = () => {
     setRecoverStatus(null);
     setRecoverClaimCode(null);
-
     const target = searchAddress.trim();
-    if (!target) {
-      setRecoverStatus("Enter a drop address to search.");
-      return;
-    }
-    if (typeof window === "undefined") {
-      setRecoverStatus("Local storage unavailable.");
-      return;
-    }
-
+    if (!target) { setRecoverStatus("Enter a drop address to search."); return; }
     try {
       const raw = window.localStorage.getItem("darkdrop-history");
-      if (!raw) {
-        setRecoverStatus("No local history found.");
-        return;
-      }
+      if (!raw) { setRecoverStatus("No local history found."); return; }
       const parsed = JSON.parse(raw) as { state?: { sentDrops?: Array<{ address?: string; claimCode?: string }> } };
-      const entries = parsed.state?.sentDrops ?? [];
-      const match = entries.find((drop) => drop.address === target);
-      if (!match) {
-        setRecoverStatus("No matching drop found in local history.");
-        return;
-      }
-      if (!match.claimCode) {
-        setRecoverStatus("Match found, but no claim code was stored.");
-        return;
-      }
+      const match = (parsed.state?.sentDrops ?? []).find((d) => d.address === target);
+      if (!match) { setRecoverStatus("No matching drop found."); return; }
+      if (!match.claimCode) { setRecoverStatus("Match found but no claim code stored."); return; }
       setRecoverClaimCode(match.claimCode);
-      setRecoverStatus("Claim code recovered from local storage.");
-    } catch {
-      setRecoverStatus("Failed to read local storage.");
-    }
+      setRecoverStatus("Claim code recovered.");
+    } catch { setRecoverStatus("Failed to read local storage."); }
   };
 
   const handleVaultExport = async () => {
     setVaultStatus(null);
-    if (typeof window === "undefined") {
-      setVaultStatus("Vault export is only available in the browser.");
-      return;
-    }
-
     try {
       setVaultBusy(true);
       const snapshot = {
-        sentDrops: sentDrops.map((drop) => ({
-          address: drop.address,
-          amount: drop.amount,
-          asset: drop.asset,
-          cluster: drop.cluster,
-          claimCode: drop.claimCode,
-          createdAt: drop.createdAt,
-          status: drop.status,
-        })),
-        claimedDrops: claimedDrops.map((drop) => ({
-          address: drop.address,
-          amount: drop.amount,
-          asset: drop.asset,
-          cluster: drop.cluster,
-          signature: drop.signature,
-          claimedAt: drop.claimedAt,
-        })),
+        sentDrops: sentDrops.map((d) => ({ address: d.address, amount: d.amount, asset: d.asset, cluster: d.cluster, claimCode: d.claimCode, createdAt: d.createdAt, status: d.status })),
+        claimedDrops: claimedDrops.map((d) => ({ address: d.address, amount: d.amount, asset: d.asset, cluster: d.cluster, signature: d.signature, claimedAt: d.claimedAt })),
       };
       const vault = await buildEncryptedVault(snapshot, vaultPassphrase);
       const blob = new Blob([JSON.stringify(vault, null, 2)], { type: "application/json" });
       const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `darkdrop-vault-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-      anchor.click();
+      const a = document.createElement("a");
+      a.href = url; a.download = `darkdrop-vault-${new Date().toISOString().replace(/[:.]/g, "-")}.json`; a.click();
       window.URL.revokeObjectURL(url);
-      setVaultStatus("Encrypted vault exported.");
-    } catch (error) {
-      setVaultStatus(error instanceof Error ? error.message : "Vault export failed.");
-    } finally {
-      setVaultBusy(false);
-    }
+      setVaultStatus("Vault exported.");
+    } catch (e) { setVaultStatus(e instanceof Error ? e.message : "Export failed."); }
+    finally { setVaultBusy(false); }
   };
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-16">
-      <div className="space-y-3">
-        <Link href="/" className="text-xs tracking-[0.4em] text-[var(--accent)]">
-          DARKDROP / HISTORY
-        </Link>
-        <p className="text-2xl font-semibold tracking-[0.3em] text-white">Local Activity</p>
-        <p className="text-sm text-[rgba(224,224,224,0.7)]">
-          Stored only in this device&apos;s local storage. Wipe your browser to purge traces.
-        </p>
-      </div>
+    <div className="relative flex min-h-screen flex-col">
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between border-b border-[rgba(0,255,65,0.12)] bg-[rgba(0,0,0,0.92)] px-8 backdrop-blur-md" style={{height:"52px"}}>
+        <span className="font-mono text-[13px] tracking-[0.22em] text-[var(--accent)]">DARKDROP</span>
+        <div className="flex items-center gap-1 border border-[rgba(0,255,65,0.15)] px-1 py-1">
+          <Link href="/" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">HOME</Link>
+          <Link href="/drop/create" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">CREATE</Link>
+          <Link href="/drop/claim" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">CLAIM</Link>
+        </div>
+        <Link href="/drop/create" className="border border-[var(--accent)] px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[var(--accent)] transition-colors hover:bg-[rgba(0,255,65,0.08)]">CREATE DROP</Link>
+      </nav>
 
-      <section className="grid gap-6 md:grid-cols-2">
-        <article className="border border-[rgba(0,255,65,0.2)] bg-[var(--card)] p-5">
-          <header className="mb-4 flex items-center gap-2 text-sm tracking-[0.3em] text-[var(--accent)]">
-            <Clock3 size={18} />
-            SENT DROPS
-          </header>
-          <div className="space-y-4 text-xs">
-            {sentDrops.length === 0 && <p className="text-[rgba(224,224,224,0.6)]">No drops created yet.</p>}
+      <main className="mx-auto w-full max-w-3xl px-6 pb-20" style={{paddingTop:"80px"}}>
+        <div className="mb-8">
+          <p className="mb-2 font-mono text-[9px] tracking-[0.3em] text-[rgba(0,255,65,0.35)]">OUTPUT // 0X03</p>
+          <h1 className="font-mono text-[clamp(24px,4vw,36px)] font-light leading-[1.15] text-[var(--text)]">Local activity.</h1>
+          <p className="mt-3 text-xs leading-relaxed text-[rgba(224,224,224,0.45)]">Stored only in this device's local storage. Clear your browser to purge all traces.</p>
+        </div>
+
+        {/* TABS */}
+        <div className="mb-3 flex border border-[rgba(0,255,65,0.1)]">
+          {(["sent","claimed"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={`flex-1 py-3 font-mono text-[10px] tracking-[0.18em] border-none transition-colors ${
+                tab === t ? "bg-[rgba(0,255,65,0.06)] text-[var(--accent)]" : "text-[rgba(224,224,224,0.3)] hover:text-[rgba(224,224,224,0.5)]"
+              }`}
+            >
+              {t === "sent" ? `SENT (${sentDrops.length})` : `CLAIMED (${claimedDrops.length})`}
+            </button>
+          ))}
+        </div>
+
+        {/* SENT */}
+        {tab === "sent" && (
+          <div className="flex flex-col gap-2">
+            {sentDrops.length === 0 && (
+              <div className="border border-[rgba(0,255,65,0.08)] px-5 py-8 text-center">
+                <p className="font-mono text-[10px] tracking-[0.2em] text-[rgba(224,224,224,0.2)]">NO DROPS CREATED YET</p>
+              </div>
+            )}
             {sentDrops.map((drop) => (
-              <div key={drop.signature} className="border border-[rgba(0,255,65,0.2)] p-3">
-                <p className="text-[var(--accent)]">
-                  {drop.amount} {getAssetSymbol(drop.asset)}
-                </p>
-                <p className="mt-1 text-[rgba(224,224,224,0.7)]">{drop.address}</p>
-                <p className="text-[rgba(224,224,224,0.5)]">
-                  {new Date(drop.createdAt).toLocaleString()} · {CLUSTER_LABELS[drop.cluster]}
-                </p>
-                <p
-                  className={`mt-1 text-xs uppercase tracking-[0.3em] ${
-                    drop.status === "claimed" ? "text-[var(--accent)]" : "text-[var(--danger)]"
-                  }`}
-                >
-                  {drop.status}
-                </p>
+              <div key={drop.signature} className="border border-[rgba(0,255,65,0.1)] bg-[#050505]">
+                <div className="border-b border-[rgba(0,255,65,0.08)] px-5 py-3 flex items-center justify-between">
+                  <span className="font-mono text-[13px] text-[var(--accent)]">{drop.amount} {getAssetSymbol(drop.asset)}</span>
+                  <span className={`font-mono text-[8px] tracking-[0.18em] border px-2 py-0.5 ${drop.status === "claimed" ? "text-[var(--accent)] border-[rgba(0,255,65,0.3)]" : "text-[rgba(224,224,224,0.3)] border-[rgba(224,224,224,0.1)]"}`}>{drop.status?.toUpperCase()}</span>
+                </div>
+                <div className="divide-y divide-[rgba(0,255,65,0.05)] text-[11px]">
+                  <div className="flex justify-between px-5 py-2">
+                    <span className="text-[rgba(224,224,224,0.3)]">Address</span>
+                    <span className="font-mono text-[rgba(224,224,224,0.5)]">{drop.address.slice(0,8)}...{drop.address.slice(-6)}</span>
+                  </div>
+                  <div className="flex justify-between px-5 py-2">
+                    <span className="text-[rgba(224,224,224,0.3)]">Created</span>
+                    <span className="text-[rgba(224,224,224,0.5)]">{new Date(drop.createdAt).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between px-5 py-2">
+                    <span className="text-[rgba(224,224,224,0.3)]">Network</span>
+                    <span className="text-[rgba(224,224,224,0.5)]">{CLUSTER_LABELS[drop.cluster]}</span>
+                  </div>
+                </div>
                 {drop.claimCode && (
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                    <button type="button" onClick={() => copyToClipboard(drop.claimCode!)}>
-                      COPY CLAIM CODE
+                  <div className="flex gap-2 px-4 py-3">
+                    <button type="button" onClick={() => copy(drop.claimCode!, drop.signature)} className="flex-1 py-2 font-mono text-[9px] tracking-[0.12em]">
+                      {copied === drop.signature ? "COPIED" : "COPY CODE"}
                     </button>
-                    <Link
-                      href={claimUrl(drop.claimCode)}
-                      className="border border-[rgba(255,0,68,0.6)] bg-[rgba(255,0,68,0.08)] px-3 py-2 text-[var(--danger)]"
-                    >
+                    <Link href={claimUrl(drop.claimCode)} className="flex-1 border border-[rgba(255,0,68,0.3)] bg-[rgba(255,0,68,0.05)] py-2 text-center font-mono text-[9px] tracking-[0.12em] text-[var(--danger)]">
                       CLAW BACK
                     </Link>
                   </div>
@@ -168,87 +136,81 @@ export default function HistoryPage() {
               </div>
             ))}
           </div>
-        </article>
+        )}
 
-        <article className="border border-[rgba(0,255,65,0.2)] bg-[var(--card)] p-5">
-          <header className="mb-4 flex items-center gap-2 text-sm tracking-[0.3em] text-[var(--accent)]">
-            <ShieldCheck size={18} />
-            CLAIMED DROPS
-          </header>
-          <div className="space-y-4 text-xs">
-            {claimedDrops.length === 0 && <p className="text-[rgba(224,224,224,0.6)]">No claims recorded.</p>}
+        {/* CLAIMED */}
+        {tab === "claimed" && (
+          <div className="flex flex-col gap-2">
+            {claimedDrops.length === 0 && (
+              <div className="border border-[rgba(0,255,65,0.08)] px-5 py-8 text-center">
+                <p className="font-mono text-[10px] tracking-[0.2em] text-[rgba(224,224,224,0.2)]">NO CLAIMS RECORDED YET</p>
+              </div>
+            )}
             {claimedDrops.map((drop) => (
-              <div key={drop.signature} className="border border-[rgba(0,255,65,0.2)] p-3">
-                <p className="text-[var(--accent)]">
-                  {drop.amount} {getAssetSymbol(drop.asset)} swept
-                </p>
-                <p className="mt-1 text-[rgba(224,224,224,0.7)]">{drop.address}</p>
-                <p className="text-[rgba(224,224,224,0.5)]">
-                  {new Date(drop.claimedAt).toLocaleString()} · {CLUSTER_LABELS[drop.cluster]}
-                </p>
-                <a
-                  href={explorerUrl(drop.signature)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-1 inline-flex items-center gap-1 text-[var(--accent)]"
-                >
-                  View TX <ArrowUpRight size={14} />
-                </a>
+              <div key={drop.signature} className="border border-[rgba(0,255,65,0.1)] bg-[#050505]">
+                <div className="border-b border-[rgba(0,255,65,0.08)] px-5 py-3 flex items-center justify-between">
+                  <span className="font-mono text-[13px] text-[var(--accent)]">{drop.amount} {getAssetSymbol(drop.asset)} swept</span>
+                  <a href={explorerUrl(drop.signature)} target="_blank" rel="noreferrer" className="font-mono text-[9px] tracking-[0.12em] text-[rgba(0,255,65,0.4)] hover:text-[var(--accent)]">VIEW TX →</a>
+                </div>
+                <div className="divide-y divide-[rgba(0,255,65,0.05)] text-[11px]">
+                  <div className="flex justify-between px-5 py-2">
+                    <span className="text-[rgba(224,224,224,0.3)]">Address</span>
+                    <span className="font-mono text-[rgba(224,224,224,0.5)]">{drop.address.slice(0,8)}...{drop.address.slice(-6)}</span>
+                  </div>
+                  <div className="flex justify-between px-5 py-2">
+                    <span className="text-[rgba(224,224,224,0.3)]">Claimed</span>
+                    <span className="text-[rgba(224,224,224,0.5)]">{new Date(drop.claimedAt).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between px-5 py-2">
+                    <span className="text-[rgba(224,224,224,0.3)]">Network</span>
+                    <span className="text-[rgba(224,224,224,0.5)]">{CLUSTER_LABELS[drop.cluster]}</span>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
-        </article>
-      </section>
-
-      <section className="border border-[rgba(0,255,65,0.2)] bg-[var(--card)] p-5 text-xs">
-        <p className="text-sm tracking-[0.3em] text-[var(--accent)]">RECOVER FROM LOCAL</p>
-        <p className="mt-2 text-[rgba(224,224,224,0.7)]">
-          Search this device&apos;s local history for a stored claim code by burner address.
-        </p>
-        <div className="mt-3 flex flex-col gap-3 md:flex-row">
-          <input
-            type="text"
-            value={searchAddress}
-            onChange={(event) => setSearchAddress(event.target.value)}
-            placeholder="Paste drop address"
-            className="flex-1"
-          />
-          <button type="button" onClick={handleRecover} className="px-4 py-2">
-            CHECK LOCAL
-          </button>
-        </div>
-        {recoverStatus && (
-          <p className="mt-3 text-[rgba(224,224,224,0.7)]">{recoverStatus}</p>
         )}
-        {recoverClaimCode && (
-          <div className="mt-3 space-y-2">
-            <p className="text-[var(--accent)]">Recovered claim code:</p>
-            <pre className="max-h-32 overflow-y-auto bg-black/60 p-3 text-xs">{recoverClaimCode}</pre>
+
+        {/* RECOVER */}
+        <div className="mt-6 border border-[rgba(0,255,65,0.1)] bg-[#050505]">
+          <div className="border-b border-[rgba(0,255,65,0.08)] px-5 py-3">
+            <span className="font-mono text-[9px] tracking-[0.28em] text-[rgba(224,224,224,0.2)]">RECOVER FROM LOCAL</span>
           </div>
-        )}
-      </section>
-
-      <section className="border border-[rgba(0,255,65,0.2)] bg-[var(--card)] p-5 text-xs">
-        <p className="text-sm tracking-[0.3em] text-[var(--accent)]">LOCAL PRIVACY VAULT</p>
-        <p className="mt-2 text-[rgba(224,224,224,0.7)]">
-          Export an encrypted vault file for offline storage or local watchtower monitoring. Passphrase never
-          leaves your device.
-        </p>
-        <div className="mt-3 flex flex-col gap-3 md:flex-row">
-          <input
-            type="password"
-            value={vaultPassphrase}
-            onChange={(event) => setVaultPassphrase(event.target.value)}
-            placeholder="Vault passphrase"
-            className="flex-1"
-          />
-          <button type="button" onClick={handleVaultExport} className="px-4 py-2" disabled={vaultBusy}>
-            {vaultBusy ? "EXPORTING..." : "EXPORT VAULT"}
-          </button>
+          <div className="p-4 flex flex-col gap-3">
+            <p className="text-[11px] text-[rgba(224,224,224,0.4)]">Search local storage for a claim code by burner address.</p>
+            <div className="flex gap-2">
+              <input type="text" value={searchAddress} onChange={(e) => setSearchAddress(e.target.value)} placeholder="Paste drop address..." className="flex-1 border border-[rgba(0,255,65,0.2)] bg-[#020202] px-4 py-2.5 font-mono text-[11px] focus:border-[var(--accent)] focus:outline-none" />
+              <button type="button" onClick={handleRecover} className="px-4 py-2 font-mono text-[9px] tracking-[0.12em]">SEARCH</button>
+            </div>
+            {recoverStatus && <p className={`text-[11px] ${recoverClaimCode ? "text-[var(--accent)]" : "text-[rgba(224,224,224,0.4)]"}`}>{recoverStatus}</p>}
+            {recoverClaimCode && (
+              <div className="border border-[rgba(0,255,65,0.15)] bg-[#020202] p-3">
+                <p className="break-all font-mono text-[10px] text-[var(--accent)]">{recoverClaimCode}</p>
+                <button type="button" onClick={() => copy(recoverClaimCode, "recover")} className="mt-2 py-1.5 font-mono text-[9px] tracking-[0.12em] w-full">
+                  {copied === "recover" ? "COPIED" : "COPY CODE"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-        {vaultStatus && <p className="mt-3 text-[rgba(224,224,224,0.7)]">{vaultStatus}</p>}
-      </section>
+
+        {/* VAULT */}
+        <div className="mt-3 border border-[rgba(0,255,65,0.1)] bg-[#050505]">
+          <div className="border-b border-[rgba(0,255,65,0.08)] px-5 py-3">
+            <span className="font-mono text-[9px] tracking-[0.28em] text-[rgba(224,224,224,0.2)]">ENCRYPTED VAULT EXPORT</span>
+          </div>
+          <div className="p-4 flex flex-col gap-3">
+            <p className="text-[11px] text-[rgba(224,224,224,0.4)]">Export an AES-encrypted backup of all local history. Passphrase never leaves your device.</p>
+            <div className="flex gap-2">
+              <input type="password" value={vaultPassphrase} onChange={(e) => setVaultPassphrase(e.target.value)} placeholder="Vault passphrase..." className="flex-1 border border-[rgba(0,255,65,0.2)] bg-[#020202] px-4 py-2.5 font-mono text-[11px] focus:border-[var(--accent)] focus:outline-none" />
+              <button type="button" onClick={handleVaultExport} disabled={vaultBusy} className="px-4 py-2 font-mono text-[9px] tracking-[0.12em] disabled:opacity-50">
+                {vaultBusy ? "EXPORTING..." : "EXPORT"}
+              </button>
+            </div>
+            {vaultStatus && <p className="text-[11px] text-[var(--accent)]">{vaultStatus}</p>}
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
-

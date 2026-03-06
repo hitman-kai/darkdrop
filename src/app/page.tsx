@@ -11,7 +11,6 @@ export default function Home() {
         <div className="flex items-center gap-1 border border-[rgba(0,255,65,0.15)] px-1 py-1">
           <Link href="/drop/create" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">CREATE</Link>
           <Link href="/drop/claim" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">CLAIM</Link>
-          <Link href="/pool" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">DARKPOOL</Link>
           <Link href="/roadmap" className="px-4 py-1.5 font-mono text-[10px] tracking-[0.15em] text-[rgba(224,224,224,0.5)] transition-colors hover:text-[var(--accent)]">ROADMAP</Link>
         </div>
         <WalletConnectButton />
@@ -47,15 +46,6 @@ export default function Home() {
               className="border border-[rgba(0,255,65,0.25)] px-7 py-3 font-mono text-[10px] tracking-[0.2em] text-[rgba(224,224,224,0.6)] transition-all hover:border-[rgba(0,255,65,0.5)] hover:text-[var(--text)]"
             >
               CLAIM DROP
-            </Link>
-          </div>
-
-          {/* DarkPool pill */}
-          <div className="mb-16 pl-6">
-            <Link href="/pool" className="inline-flex items-center gap-3 border border-[rgba(0,255,65,0.2)] bg-[rgba(0,255,65,0.04)] px-4 py-2.5 transition-all hover:bg-[rgba(0,255,65,0.08)]">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent)] shadow-[0_0_6px_var(--accent)]" />
-              <span className="font-mono text-[10px] tracking-[0.18em] text-[var(--accent)]">DARKPOOL</span>
-              <span className="border-l border-[rgba(0,255,65,0.2)] pl-3 font-mono text-[9px] tracking-[0.12em] text-[rgba(0,255,65,0.4)]">MIXING POOL · LIVE</span>
             </Link>
           </div>
 
