@@ -38,7 +38,7 @@ export default function Home() {
           <div className="mb-12 flex flex-wrap gap-3 pl-6">
             <Link
               href="/drop/create"
-              className="border border-[var(--accent)] bg-[var(--accent)] px-7 py-3 font-mono text-[10px] font-medium tracking-[0.2em] text-black transition-all hover:bg-[#33ff66] hover:shadow-[0_0_24px_rgba(0,255,65,0.25)]"
+              className="border border-[var(--accent)] bg-[var(--accent)] px-7 py-3 font-mono text-[10px] font-medium tracking-[0.2em] !text-black transition-all hover:bg-[#33ff66] hover:shadow-[0_0_24px_rgba(0,255,65,0.25)]"
             >
               CREATE DROP
             </Link>

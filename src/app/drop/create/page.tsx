@@ -322,7 +322,7 @@ export default function CreateDropPage() {
               type="button"
               onClick={handleCreate}
               disabled={processing || shielding}
-              className="w-full border-[var(--accent)] bg-[var(--accent)] py-4 font-mono text-[10px] font-medium tracking-[0.2em] text-black transition-all hover:bg-[#33ff66] hover:shadow-[0_0_24px_rgba(0,255,65,0.2)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full border-[var(--accent)] bg-[var(--accent)] py-4 font-mono text-[10px] font-medium tracking-[0.2em] !text-black transition-all hover:bg-[#33ff66] hover:shadow-[0_0_24px_rgba(0,255,65,0.2)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {shielding ? "SHIELDING..." : processing ? "EXECUTING..." : "CREATE DEAD DROP"}
             </button>
